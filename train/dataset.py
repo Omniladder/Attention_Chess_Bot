@@ -7,6 +7,32 @@ import os
 import pandas as pd
 import chess
 import torch
+from typing import Union
+
+from torch.utils.data import DataLoader, TensorDataset
+
+
+
+"""
+    ::TENSOR STRUCTURE::
+
+    64 Spaces
+    6 Pieces
+    2 Colors
+    King Side Castling (White & Black)
+    Queen Side Castling (White & Black)
+    64 spaces for en passent
+    Player Move
+
+    PM ,King Castle (W), Queen Castle (W), King Castle (B), Queen Castle (B), Enpassent Location 
+
+
+    69 Index Offset // Player Move castling White and Black followed by En passent
+    64 Spaces for each Piece 768 total spaces
+    Total 837
+"""
+
+
 
 
 class DataHandler:
@@ -34,7 +60,7 @@ class DataHandler:
             case _:
                 raise ValueError(f"Unknown Winning Player: {winner}")
 
-    def get_dataset(
+    def get_lichess_dataset(
         self, dataset_path: str = "../data/Small_chess_data.csv"
     ) -> pd.DataFrame:
         """
@@ -49,6 +75,28 @@ class DataHandler:
         dataset["winner"] = dataset["winner"].apply(self.__winner_to_tensor)
 
         return dataset
+
+    def get_tensorset(self, tensorset_path: str = "../data/Small_tensor_data") -> torch.utils.data.TensorDataset:
+        """
+            Gets and converts csv file to a tensor set
+        """
+        dataset = pd.read_csv(tensorset_path)
+        tensorset = TensorDataset(dataset["gameState"], dataset["winner"])
+        return tensorset
+    
+    def get_dataloader(self, tensorset_path: str = "../data/Small_tensor_data", batch_size: Union[None, int] = None) -> torch.utils.data.DataLoader:
+        """
+            Converts csv file to a Dataloader
+        """
+        tensorset = self.get_tensorset(tensorset_path)
+        return DataLoader(tensorset, batch_size=batch_size)
+
+    def convert_to_dataloader(self, tensorset: pd.DataFrame, batch_size: Union[None, int] = None) -> torch.utils.data.DataLoader:
+        """
+            Converts tensorset to dataloader in hindsight i didnt need this
+        """
+
+        return DataLoader(tensorset, batch_size=batch_size)
 
     def __anot_to_tensor(self, game_moves: str, winner: int) -> pd.DataFrame:
         """
@@ -110,21 +158,4 @@ class DataHandler:
         return tensor
 
 
-"""
-    ::TENSOR STRUCTURE::
 
-    64 Spaces
-    6 Pieces
-    2 Colors
-    King Side Castling (White & Black)
-    Queen Side Castling (White & Black)
-    64 spaces for en passent
-    Player Move
-
-    PM ,King Castle (W), Queen Castle (W), King Castle (B), Queen Castle (B), Enpassent Location 
-
-
-    69 Index Offset // Player Move castling White and Black followed by En passent
-    64 Spaces for each Piece 768 total spaces
-    Total 837
-"""
