@@ -1,8 +1,9 @@
 from dataset import DataHandler
-from model import ChessEvalModel
+from model import ChessModel
 
 handler = DataHandler()
 df = handler.get_tensorset()
+
 
 '''`
 df = handler.get_lichess_dataset("../data/Small_chess_data.csv")
