@@ -56,7 +56,7 @@ class FinalBlock(nn.Module):
         if not isinstance(inputs, torch.Tensor):
             raise ValueError(f"Invalid Type Final Layer {type(inputs)} expected {type(torch.Tensor)}")
 
-        if inputs.size(0) != self.input_size:
+        if inputs.size(0) != self.model_width:
             raise ValueError(f"Final Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.input_size}")
         
         embedding = self.linear(inputs)
@@ -78,7 +78,7 @@ class HiddenBlock(nn.Module):
         if not isinstance(inputs, torch.Tensor):
             raise ValueError(f"Invalid Type Final Layer {type(inputs)} expected {type(torch.Tensor)}")
 
-        if inputs.size(0) != self.input_size:
+        if inputs.size(0) != self.model_width:
             raise ValueError(f"Layer Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.input_size}")
         
         embedding = self.linear(inputs)
@@ -89,11 +89,12 @@ class HiddenBlock(nn.Module):
 
         return embedding
 
-class ChessEvalModel(nn.Module):
+class ChessArch(nn.Module):
     """
-        Underlying Chess Eval Model Structure
+        Underlying Chess Eval Model Architecture
     """
     def __init__(self, model_width: int, model_depth:int, dropout_rate: float = .3):
+        super(ChessArch, self).__init__()
         self.model_width = model_width
         self.model_depth = model_depth
         self.data_handler = DataHandler()
@@ -101,15 +102,12 @@ class ChessEvalModel(nn.Module):
         self.hidden_layers = nn.ModuleList()
         self.final_layer = FinalBlock(model_width)
 
-        for _ in range(len(model_depth)):
+        for _ in range(model_depth):
             self.hidden_layers.append(HiddenBlock(model_width, dropout_rate))
 
     def forward(self, inputs):
         if not isinstance(inputs, torch.Tensor):
             raise ValueError(f"Invalid Type Final Layer {type(inputs)} expected {type(torch.Tensor)}")
-
-        if inputs.size(0) != self.input_size:
-            raise ValueError(f"Layer Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.input_size}")
             
         embedding = self.init_layer(inputs)
 
@@ -126,7 +124,7 @@ class ChessModel():
         Chess Eval Engine Interface
     """
     def __init__(self, model_width: int = 1000, model_depth: int = 200, dropout_rate: float = .3):
-        self.model = ChessEvalModel(model_width=model_width, model_depth=model_depth, dropout_rate=dropout_rate)
+        self.model = ChessArch(model_width=model_width, model_depth=model_depth, dropout_rate=dropout_rate)
         self.optim = torch.optim.Adam(self.model.parameters())
         self.handler = DataHandler()
 

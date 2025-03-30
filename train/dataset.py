@@ -77,16 +77,16 @@ class DataHandler:
         Takes a Python Chess Board and Convert to a One Hot encoded Vector Tensor
         """
 
-        tensor = torch.zeros(837, dtype=torch.bool)
+        tensor = torch.zeros(837)
 
-        tensor[0] = game_board.turn == chess.WHITE
-        tensor[1] = game_board.has_kingside_castling_rights(chess.WHITE)
-        tensor[2] = game_board.has_queenside_castling_rights(chess.WHITE)
-        tensor[3] = game_board.has_kingside_castling_rights(chess.BLACK)
-        tensor[4] = game_board.has_queenside_castling_rights(chess.BLACK)
+        tensor[0] = int(game_board.turn == chess.WHITE)
+        tensor[1] = int(game_board.has_kingside_castling_rights(chess.WHITE))
+        tensor[2] = int(game_board.has_queenside_castling_rights(chess.WHITE))
+        tensor[3] = int(game_board.has_kingside_castling_rights(chess.BLACK))
+        tensor[4] = int(game_board.has_queenside_castling_rights(chess.BLACK))
 
         if game_board.has_legal_en_passant():
-            tensor[5 + int(game_board.en_passant)] = True
+            tensor[5 + int(game_board.en_passant)] = 1
 
         for square, piece in game_board.piece_map().items():
             tensor[
@@ -94,7 +94,7 @@ class DataHandler:
                 + int(square)
                 + 64 * (int(piece.piece_type) - 1)
                 + int(piece.piece_type == chess.BLACK) * 453
-            ] = True
+            ] = 1
 
         return tensor
 
