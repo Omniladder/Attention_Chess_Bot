@@ -7,7 +7,9 @@ import os
 import pandas as pd
 import chess
 import torch
-from typing import Union
+from typing import Union, List, Tuple
+
+from tqdm import tqdm
 
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -76,29 +78,7 @@ class DataHandler:
 
         return dataset
 
-    def get_tensorset(self, tensorset_path: str = "../data/Small_tensor_data") -> torch.utils.data.TensorDataset:
-        """
-            Gets and converts csv file to a tensor set
-        """
-        dataset = pd.read_csv(tensorset_path)
-        tensorset = TensorDataset(dataset["gameState"], dataset["winner"])
-        return tensorset
-    
-    def get_dataloader(self, tensorset_path: str = "../data/Small_tensor_data", batch_size: Union[None, int] = None) -> torch.utils.data.DataLoader:
-        """
-            Converts csv file to a Dataloader
-        """
-        tensorset = self.get_tensorset(tensorset_path)
-        return DataLoader(tensorset, batch_size=batch_size)
-
-    def convert_to_dataloader(self, tensorset: pd.DataFrame, batch_size: Union[None, int] = None) -> torch.utils.data.DataLoader:
-        """
-            Converts tensorset to dataloader in hindsight i didnt need this
-        """
-
-        return DataLoader(tensorset, batch_size=batch_size)
-
-    def __anot_to_tensor(self, game_moves: str, winner: int) -> pd.DataFrame:
+    def __anot_to_tensor(self, game_moves: str) -> List[torch.Tensor]:
         """
         Function to turn chess asymptomatic notation into list FEN Strings
         """
@@ -106,30 +86,31 @@ class DataHandler:
         move_str_array = game_moves.split(" ")
         game_state = chess.Board()
 
-        predf = {"gameState": [], "winner": [winner] * len(move_str_array)}
+        predf = []
 
         for move in move_str_array:
             game_state.push_san(move)
-            predf["gameState"].append(self.board_to_tensor(game_state))
+            predf.append(self.board_to_tensor(game_state))
 
-        return pd.DataFrame(predf)
+        return predf
 
-    def dataset_to_tensorset(self, game_dataset: pd.DataFrame) -> pd.DataFrame:
+    def dataset_to_tensorset(self, game_dataset: pd.DataFrame) -> TensorDataset:
         """
         Turns the Lichess dataframe into a Fen Based one with all Boards and wins accordingly for easy integration
         """
 
-        df = pd.DataFrame({"gameState": [], "winner": []})
-        for data_index in range(len(game_dataset)):
+        df = [[], []]
+        for data_index in tqdm(range(len(game_dataset)), desc="Converting Dataset to Tensorset"):
             new_posistions = self.__anot_to_tensor(
-                game_dataset["moves"][data_index], game_dataset["winner"][data_index]
+                game_dataset["moves"][data_index]
             )
             # df._append(new_posistions, ignore_index = True) #Using Illegal functions because the real ones are slow TF
-            df.loc[len(df)] = new_posistions.iloc[0]
-            if data_index % 100 == 0:
-                print(f"Reached Index {data_index}")
+            df[0].extend(new_posistions)
+            df[1].extend([game_dataset["winner"][data_index]] * len(new_posistions))
 
-        return df
+
+
+        return TensorDataset(torch.stack(df[0]), torch.stack(df[1]))
 
     def board_to_tensor(self, game_board: chess.Board) -> torch.Tensor:
         """

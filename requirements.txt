@@ -2,4 +2,6 @@ pandas
 python-chess
 torch
 scikit-learn
+tqdm
+numpy
 

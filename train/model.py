@@ -1,19 +1,24 @@
-from dataset import DataHandler
+"""
+    Model File Handle Model and Interface
+"""
+
+import typing
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import typing
+
 import chess
 import pandas as pd
+import numpy as np
+from tqdm import tqdm
 
+from torch.utils.data import random_split, DataLoader, TensorDataset
+from torch.optim.lr_scheduler import StepLR
 from sklearn.model_selection import train_test_split
 
-"""
-    GeLU activation Function
-
-"""
+from dataset import DataHandler
 
 
 #TODO: Construct an Attention Layer
@@ -126,11 +131,12 @@ class ChessModel():
     """
         Chess Eval Engine Interface
     """
-    def __init__(self, model_width: int = 1000, model_depth: int = 200, dropout_rate: float = .3):
+    def __init__(self, model_width: int = 500, model_depth: int = 10, dropout_rate: float = .3):
         self.model = ChessArch(model_width=model_width, model_depth=model_depth, dropout_rate=dropout_rate)
         self.optim = torch.optim.Adam(self.model.parameters())
         self.handler = DataHandler()
         self.criterion = nn.CrossEntropyLoss()
+        self.scheduler = StepLR(self.optim, step_size=10, gamma=0.1)
 
     def test_model(self):
         """
@@ -148,21 +154,70 @@ class ChessModel():
         print(f"Output Embedding: {output_embedding}")
         print("\n\nModel Passed Test\n\n")
         
-    def train(self, tensor_set: pd.DataFrame, num_epochs: int, data_split: float = .3):
+    def train(self, train_dataset: TensorDataset, dev_dataset: TensorDataset, num_epochs: int, save_path: str = "../models/mlp"):
 
-        train_test_split(tensor_set[""])
-
-        for epoch in range(num_epochs):
-            print(" ")
         
-"""
-match type(inputs):
-            case chess.Board:
-                embedding = self.data_handler.board_to_tensor(inputs)
-            case torch.Tensor:
-                embedding = inputs
-            case _:
-                raise ValueError(f"Invalid Inputted Type Please Give {type(chess.Board)} or type {torch.Tensor}")
-"""
+        # Create DataLoaders from the combined datasets
+        train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+        dev_dataloader = DataLoader(dev_dataset, batch_size=1, shuffle=False)
 
-ChessModel().test_model()
+        best_loss = np.inf
+
+        for _ in tqdm(range(num_epochs), desc="Epochs Passed"):
+            
+            for batch in tqdm(train_dataloader, desc="Training Progress", leave=False):
+                #print(batch[0].shape)
+                inp, target = batch
+
+                
+                inp = inp.squeeze(0)
+                target = target.squeeze(0)
+
+                out = self.model(inp)
+                loss = self.criterion(out, target)
+
+                loss.backward()
+                self.optim.step()
+
+
+            self.scheduler.step()
+            train_loss = self.__evaluate(train_dataloader)
+            dev_loss = self.__evaluate(dev_dataloader)
+            print(f"Average Train Loss: {train_loss} Average Dev Loss: {dev_loss}")
+
+            if(dev_loss < best_loss):
+                dev_loss = best_loss
+                print("New Best Model ::Saving::")
+                torch.save(self.model.state_dict(), save_path)
+
+
+    def __evaluate(self, dataloader: DataLoader) -> float:
+        
+        self.model.eval()
+
+        with torch.no_grad():
+            for _, batch in tqdm(enumerate(dataloader)):
+                inp, target = batch
+                log_probs = self.model(inp)
+                loss += self.criterion(log_probs, target).item()
+                count += 1
+
+        return loss / count
+
+
+
+handler = DataHandler()
+
+
+#dataset = handler.dataset_to_tensorset(handler.get_lichess_dataset())
+#torch.save(dataset, "tensorset.pt")
+
+
+dataset = torch.load("tensorset.pt", weights_only=False)
+
+train_size = (int(len(dataset) * .8))
+val_size = len(dataset) - train_size
+
+train_split, val_split = random_split(dataset, [train_size, val_size])
+
+ChessModel().train(train_dataset=train_split, dev_dataset=val_split, num_epochs=1)
