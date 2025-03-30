@@ -6,22 +6,12 @@ import chess
 import torch
 
 
-class WinnerEnum(Enum):
-    """
-    Enum for holding who won the game
-    """
-
-    WHITE = 2
-    DRAW = 1
-    BLACK = 0
-
-
 class DataHandler:
     """
     Class designed for handling data and dataset
     """
 
-    def __winner_to_enum(self, winner: str) -> WinnerEnum:
+    def __winner_to_tensor(self, winner: str) -> torch.Tensor:
         match winner:
             case "white":
                 return torch.Tensor([1,0,0])
@@ -45,11 +35,11 @@ class DataHandler:
         dataset = pd.read_csv(dataset_path)
         dataset = dataset.filter(["moves", "winner"])
 
-        dataset["winner"] = dataset["winner"].apply(self.__winner_to_enum)
+        #dataset["winner"] = dataset["winner"].apply(self.__winner_to_tensor)
 
         return dataset
 
-    def __anot_to_fen(self, game_moves: str, winner: WinnerEnum) -> pd.DataFrame:
+    def __anot_to_fen(self, game_moves: str, winner: torch.Tensor) -> pd.DataFrame:
         """
         Function to turn chess asymptomatic notation into list FEN Strings
         """
@@ -73,7 +63,7 @@ class DataHandler:
         df = pd.DataFrame({"gameState": [], "winner": []})
         for data_index in range(len(game_dataset)):
             new_posistions = self.__anot_to_fen(
-                game_dataset["moves"][data_index], game_dataset["winner"][data_index]
+                game_dataset["moves"][data_index], self.__winner_to_tensor(game_dataset["winner"][data_index])
             )
             # df._append(new_posistions, ignore_index = True) #Using Illegal functions because the real ones are slow TF
             df.loc[len(df)] = new_posistions.iloc[0]
@@ -109,8 +99,12 @@ class DataHandler:
         return tensor
 
 
-# df.to_csv("../data/Small_fen_data.csv")
-
+'''
+handler = DataHandler()
+df = handler.get_dataset()
+df = handler.dataset_to_tensor(df)
+df.to_csv("../data/Small_fen_data.csv")
+'''
 
 """
     ::TENSOR STRUCTURE::
