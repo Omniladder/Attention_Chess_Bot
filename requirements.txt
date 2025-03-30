@@ -1,4 +1,5 @@
 pandas
 python-chess
 torch
+scikit-learn
 

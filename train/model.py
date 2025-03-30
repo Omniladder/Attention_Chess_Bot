@@ -6,6 +6,9 @@ import torch.nn.functional as F
 
 import typing
 import chess
+import pandas as pd
+
+from sklearn.model_selection import train_test_split
 
 """
     GeLU activation Function
@@ -60,7 +63,7 @@ class FinalBlock(nn.Module):
             raise ValueError(f"Final Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.input_size}")
         
         embedding = self.linear(inputs)
-        embedding = F.log_softmax(embedding)
+        embedding = F.log_softmax(embedding, dim=0)
 
         return embedding
 
@@ -127,6 +130,7 @@ class ChessModel():
         self.model = ChessArch(model_width=model_width, model_depth=model_depth, dropout_rate=dropout_rate)
         self.optim = torch.optim.Adam(self.model.parameters())
         self.handler = DataHandler()
+        self.criterion = nn.CrossEntropyLoss()
 
     def test_model(self):
         """
@@ -144,7 +148,12 @@ class ChessModel():
         print(f"Output Embedding: {output_embedding}")
         print("\n\nModel Passed Test\n\n")
         
+    def train(self, tensor_set: pd.DataFrame, num_epochs: int, data_split: float = .3):
 
+        train_test_split(tensor_set[""])
+
+        for epoch in range(num_epochs):
+            print(" ")
         
 """
 match type(inputs):
