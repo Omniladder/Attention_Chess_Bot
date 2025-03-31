@@ -131,12 +131,19 @@ class ChessModel():
     """
         Chess Eval Engine Interface
     """
-    def __init__(self, model_width: int = 500, model_depth: int = 10, dropout_rate: float = .3):
+    def __init__(self, model_width: int = 120, model_depth: int = 5, dropout_rate: float = .3):
         self.model = ChessArch(model_width=model_width, model_depth=model_depth, dropout_rate=dropout_rate)
         self.optim = torch.optim.Adam(self.model.parameters())
         self.handler = DataHandler()
         self.criterion = nn.CrossEntropyLoss()
         self.scheduler = StepLR(self.optim, step_size=10, gamma=0.1)
+
+        if torch.cuda.device_count() > 0:
+            self.gpu = torch.device(0)
+        else:
+            self.gpu = torch.device("cpu")
+
+        self.model.to(self.gpu)
 
     def test_model(self):
         """
@@ -154,12 +161,14 @@ class ChessModel():
         print(f"Output Embedding: {output_embedding}")
         print("\n\nModel Passed Test\n\n")
         
-    def train(self, train_dataset: TensorDataset, dev_dataset: TensorDataset, num_epochs: int, save_path: str = "../models/mlp"):
+    def train(self, train_dataset: TensorDataset, dev_dataset: TensorDataset, num_epochs: int, batch_size: int = 32,save_path: str = "../models/mlp"):
 
+#        train_dataset.to(self.gpu)
+ #       dev_dataset.to(self.gpu)
         
         # Create DataLoaders from the combined datasets
-        train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-        dev_dataloader = DataLoader(dev_dataset, batch_size=1, shuffle=False)
+        train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        dev_dataloader = DataLoader(dev_dataset, batch_size=batch_size, shuffle=False)
 
         best_loss = np.inf
 
@@ -169,15 +178,20 @@ class ChessModel():
                 #print(batch[0].shape)
                 inp, target = batch
 
-                
+                inp = inp.to(self.gpu)
+                target = target.to(self.gpu)
+
+
                 inp = inp.squeeze(0)
                 target = target.squeeze(0)
+
 
                 out = self.model(inp)
                 loss = self.criterion(out, target)
 
                 loss.backward()
                 self.optim.step()
+                self.optim.zero_grad()
 
 
             self.scheduler.step()
@@ -220,4 +234,4 @@ val_size = len(dataset) - train_size
 
 train_split, val_split = random_split(dataset, [train_size, val_size])
 
-ChessModel().train(train_dataset=train_split, dev_dataset=val_split, num_epochs=1)
+ChessModel().train(train_dataset=train_split, dev_dataset=val_split, num_epochs=1, batch_size=1)
