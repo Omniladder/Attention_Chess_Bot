@@ -37,8 +37,8 @@ class InitBlock(nn.Module):
 
         if not isinstance(inputs, torch.Tensor):
             raise ValueError(f"Invalid Type Final Layer {type(inputs)} expected {type(torch.Tensor)}")
-        
-        if inputs.size(0) != self.input_size:
+        inputs = torch.squeeze(inputs)
+        if inputs.size(1) != self.input_size:
             raise ValueError(f"inputs Board Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.input_size}")
         
         embedding = self.linear(inputs)
@@ -64,8 +64,8 @@ class FinalBlock(nn.Module):
         if not isinstance(inputs, torch.Tensor):
             raise ValueError(f"Invalid Type Final Layer {type(inputs)} expected {type(torch.Tensor)}")
 
-        if inputs.size(0) != self.model_width:
-            raise ValueError(f"Final Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.input_size}")
+        if inputs.size(1) != self.model_width:
+            raise ValueError(f"Final Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.model_widthi}")
         
         embedding = self.linear(inputs)
         embedding = F.log_softmax(embedding, dim=0)
@@ -86,8 +86,8 @@ class HiddenBlock(nn.Module):
         if not isinstance(inputs, torch.Tensor):
             raise ValueError(f"Invalid Type Final Layer {type(inputs)} expected {type(torch.Tensor)}")
 
-        if inputs.size(0) != self.model_width:
-            raise ValueError(f"Layer Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.input_size}")
+        if inputs.size(1) != self.model_width:
+            raise ValueError(f"Layer Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.model_width}")
         
         embedding = self.linear(inputs)
         embedding = self.activ(embedding)
@@ -143,6 +143,10 @@ class ChessModel():
         else:
             self.gpu = torch.device("cpu")
 
+        if torch.backends.cudnn.enabled:
+            torch.backends.cudnn.benchmark = True
+
+
         self.model.to(self.gpu)
 
     def test_model(self):
@@ -161,7 +165,7 @@ class ChessModel():
         print(f"Output Embedding: {output_embedding}")
         print("\n\nModel Passed Test\n\n")
         
-    def train(self, train_dataset: TensorDataset, dev_dataset: TensorDataset, num_epochs: int, batch_size: int = 32,save_path: str = "../models/mlp"):
+    def train(self, train_dataset: TensorDataset, dev_dataset: TensorDataset, num_epochs: int, batch_size: int = 32,save_path: str = "../models/mlp.pth"):
 
 #        train_dataset.to(self.gpu)
  #       dev_dataset.to(self.gpu)
@@ -182,9 +186,10 @@ class ChessModel():
                 target = target.to(self.gpu)
 
 
+                '''
                 inp = inp.squeeze(0)
                 target = target.squeeze(0)
-
+                '''
 
                 out = self.model(inp)
                 loss = self.criterion(out, target)
@@ -200,7 +205,7 @@ class ChessModel():
             print(f"Average Train Loss: {train_loss} Average Dev Loss: {dev_loss}")
 
             if(dev_loss < best_loss):
-                dev_loss = best_loss
+                best_loss = dev_loss
                 print("New Best Model ::Saving::")
                 torch.save(self.model.state_dict(), save_path)
 
@@ -209,10 +214,15 @@ class ChessModel():
         
         self.model.eval()
 
+        loss = 0
+        count = 0
         with torch.no_grad():
             for _, batch in tqdm(enumerate(dataloader)):
                 inp, target = batch
+                inp = inp.to(self.gpu)
+                target = target.to(self.gpu)
                 log_probs = self.model(inp)
+                target = target.squeeze()
                 loss += self.criterion(log_probs, target).item()
                 count += 1
 
@@ -229,9 +239,16 @@ handler = DataHandler()
 
 dataset = torch.load("tensorset.pt", weights_only=False)
 
+train_size = 35
+val_size = 5000
+
+'''
 train_size = (int(len(dataset) * .8))
 val_size = len(dataset) - train_size
+'''
 
-train_split, val_split = random_split(dataset, [train_size, val_size])
+unused_size = len(dataset) - train_size - val_size
 
-ChessModel().train(train_dataset=train_split, dev_dataset=val_split, num_epochs=1, batch_size=1)
+train_split, val_split, no_used = random_split(dataset, [train_size, val_size, unused_size])
+
+ChessModel().train(train_dataset=train_split, dev_dataset=val_split, num_epochs=1, batch_size=32)
