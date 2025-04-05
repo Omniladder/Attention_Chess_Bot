@@ -1,4 +1,4 @@
 import torch
-
-print(torch.cuda.device_count()) 
-print(torch.device(2))
+print("CUDA available:", torch.cuda.is_available())
+print("cuDNN enabled:", torch.backends.cudnn.enabled)
+print("cuDNN version:", torch.backends.cudnn.version())

@@ -239,16 +239,16 @@ handler = DataHandler()
 
 dataset = torch.load("tensorset.pt", weights_only=False)
 
+'''
 train_size = 35
 val_size = 5000
-
 '''
+
 train_size = (int(len(dataset) * .8))
 val_size = len(dataset) - train_size
-'''
 
 unused_size = len(dataset) - train_size - val_size
 
 train_split, val_split, no_used = random_split(dataset, [train_size, val_size, unused_size])
 
-ChessModel().train(train_dataset=train_split, dev_dataset=val_split, num_epochs=1, batch_size=32)
+ChessModel().train(train_dataset=train_split, dev_dataset=val_split, num_epochs=50, batch_size=128)
