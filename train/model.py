@@ -98,7 +98,7 @@ class HiddenBlock(nn.Module):
         embedding = self.linear(inputs)
         embedding = self.layer_norm(embedding)
         embedding = self.activ(embedding)
-        embedding = embedding + inputs # Applies Residual Connection
+        embedding = torch.add(embedding, inputs) # Applies Residual Connection
         embedding = self.dropout(embedding)
 
         return embedding
@@ -115,6 +115,7 @@ class ChessArch(nn.Module):
         self.init_layer = InitBlock(model_width, dropout_rate)
         self.hidden_layers = nn.ModuleList()
         self.final_layer = FinalBlock(model_width)
+        
 
         for _ in range(model_depth):
             self.hidden_layers.append(HiddenBlock(model_width, dropout_rate))
@@ -137,12 +138,14 @@ class ChessModel():
     """
         Chess Eval Engine Interface
     """
-    def __init__(self, model_width: int = 120, model_depth: int = 5, dropout_rate: float = .3):
+    def __init__(self, lr: float = .001, model_width: int = 120, model_depth: int = 5, dropout_rate: float = .3):
         self.model = ChessArch(model_width=model_width, model_depth=model_depth, dropout_rate=dropout_rate)
-        self.optim = torch.optim.AdamW(self.model.parameters())
+        self.learning_rate = lr
+        self.optim = torch.optim.AdamW(self.model.parameters(), lr=self.learning_rate)
         self.handler = DataHandler()
         self.criterion = nn.CrossEntropyLoss()
         self.scheduler = StepLR(self.optim, step_size=10, gamma=0.1)
+        
 
         if torch.cuda.device_count() > 0:
             self.gpu = torch.device(0)
@@ -171,7 +174,17 @@ class ChessModel():
         print(f"Output Embedding: {output_embedding}")
         print("\n\nModel Passed Test\n\n")
         
-    def train(self, train_dataset: TensorDataset, dev_dataset: TensorDataset, num_epochs: int, batch_size: int = 32,model_name: str = "mlp"):
+    def train(self, tensorset_path: str = "tensorset.pt", train_test_split: float = .8,  num_epochs: int = 10, batch_size: int = 32, model_name: str = "mlp"):
+
+        dataset = torch.load(tensorset_path, weights_only=False)
+
+
+        train_size = (int(len(dataset) * train_test_split))
+        val_size = len(dataset) - train_size
+
+        unused_size = len(dataset) - train_size - val_size
+
+        train_dataset, dev_dataset, no_used = random_split(dataset, [train_size, val_size, unused_size])
 
         save_path = f"../models/{model_name}.pth"
 
@@ -238,11 +251,14 @@ class ChessModel():
 
         plt.plot([i for i in range(len(train_loss_series))], train_loss_series, label='Training Loss', color='blue')
         plt.plot([i for i in range(len(dev_loss_series))], dev_loss_series, label='Dev Loss', color='red')
+        plt.legend()
 
         plt.savefig(graph_loss_path)
+        plt.clf()
 
         plt.plot([i for i in range(len(train_acc_series))], train_acc_series, label='Training Accuracy', color='blue')
         plt.plot([i for i in range(len(dev_loss_series))], dev_loss_series, label='Dev Accuracy', color='red')
+        plt.legend()
 
         plt.savefig(graph_acc_path)
 
@@ -283,26 +299,8 @@ class ChessModel():
 
 
 
-handler = DataHandler()
 
-
-#dataset = handler.dataset_to_tensorset(handler.get_lichess_dataset())
-#torch.save(dataset, "tensorset.pt")
-
-
-dataset = torch.load("tensorset.pt", weights_only=False)
-
-
-train_split = .8
-
-train_size = (int(len(dataset) * train_split))
-val_size = len(dataset) - train_size
-
-unused_size = len(dataset) - train_size - val_size
-
-train_split, val_split, no_used = random_split(dataset, [train_size, val_size, unused_size])
-
-ChessModel(model_width = 3, model_depth=2).train(train_dataset=train_split, dev_dataset=val_split, num_epochs=5, batch_size=128)
+ChessModel(model_width = 3, model_depth=2).train(num_epochs=5, batch_size=128)
 
 
 '''
