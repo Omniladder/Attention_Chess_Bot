@@ -18,6 +18,8 @@ from torch.utils.data import random_split, DataLoader, TensorDataset
 from torch.optim.lr_scheduler import StepLR
 from sklearn.model_selection import train_test_split
 
+import matplotlib.pyplot as plt
+
 from dataset import DataHandler
 
 
@@ -165,8 +167,15 @@ class ChessModel():
         print(f"Output Embedding: {output_embedding}")
         print("\n\nModel Passed Test\n\n")
         
-    def train(self, train_dataset: TensorDataset, dev_dataset: TensorDataset, num_epochs: int, batch_size: int = 32,save_path: str = "../models/mlp.pth"):
+    def train(self, train_dataset: TensorDataset, dev_dataset: TensorDataset, num_epochs: int, batch_size: int = 32,model_name: str = "mlp"):
 
+        save_path = f"../models/{model_name}.pth"
+
+        graph_loss_path = f"../results/graphs/{model_name}_loss.png"
+
+        graph_acc_path = f"../results/graphs/{model_name}_acc.png"
+
+        data_path = f"../results/data/{model_name}.csv"
 #        train_dataset.to(self.gpu)
  #       dev_dataset.to(self.gpu)
         
@@ -175,6 +184,11 @@ class ChessModel():
         dev_dataloader = DataLoader(dev_dataset, batch_size=batch_size, shuffle=False)
 
         best_loss = np.inf
+
+        train_loss_series = []
+        dev_loss_series = []
+        train_acc_series = []
+        dev_acc_series = []
 
         for _ in tqdm(range(num_epochs), desc="Epochs Passed"):
             
@@ -199,16 +213,47 @@ class ChessModel():
                 self.optim.zero_grad()
 
 
-            self.scheduler.step()
-            train_loss = self.__evaluate(train_dataloader)
-            dev_loss = self.__evaluate(dev_dataloader)
+#            self.scheduler.step()
+            train_loss, train_acc = self.__evaluate(train_dataloader)
+            dev_loss, dev_acc = self.__evaluate(dev_dataloader)
+
+            train_loss_series.append(train_loss)
+            dev_loss_series.append(dev_loss)
+
+            train_acc_series.append(train_acc)
+            dev_acc_series.append(dev_acc)
+
             print(f"Average Train Loss: {train_loss} Average Dev Loss: {dev_loss}")
+
+            
 
             if(dev_loss < best_loss):
                 best_loss = dev_loss
                 print("New Best Model ::Saving::")
                 torch.save(self.model.state_dict(), save_path)
 
+        plt.plot([i for i in range(len(train_loss_series))], train_loss_series, label='Training Loss', color='blue')
+        plt.plot([i for i in range(len(dev_loss_series))], dev_loss_series, label='Dev Loss', color='red')
+
+        plt.savefig(graph_loss_path)
+
+        plt.plot([i for i in range(len(train_acc_series))], train_acc_series, label='Training Accuracy', color='blue')
+        plt.plot([i for i in range(len(dev_loss_series))], dev_loss_series, label='Dev Accuracy', color='red')
+
+        plt.savefig(graph_acc_path)
+
+        training_data = {
+            "train accuracies": train_acc_series,
+            "dev accuracies": dev_acc_series,
+            "train loss": train_loss_series,
+            "dev loss": dev_loss_series
+        }
+
+        training_data = pd.DataFrame(training_data)
+
+        training_data.to_csv(data_path)
+
+        return train_loss_series, dev_loss_series, train_acc_series, dev_acc_series
 
     def __evaluate(self, dataloader: DataLoader) -> float:
         
@@ -216,17 +261,21 @@ class ChessModel():
 
         loss = 0
         count = 0
+        num_correct = 0
         with torch.no_grad():
             for _, batch in tqdm(enumerate(dataloader)):
                 inp, target = batch
                 inp = inp.to(self.gpu)
                 target = target.to(self.gpu)
                 log_probs = self.model(inp)
-                target = target.squeeze()
-                loss += self.criterion(log_probs, target).item()
-                count += 1
+#                target = target.squeeze()
+                loss += self.criterion(log_probs, target).item() * log_probs.size(0)
+               # print("Max Arg : " + str(torch.argmax(target, dim=1)) + " , " + str(torch.argmax(log_probs, dim=1)))
+                num_correct += (torch.argmax(target) == torch.argmax(log_probs, dim=1)).sum().item()
+                count += target.size(0)
 
-        return loss / count
+        
+        return loss / count, num_correct / count
 
 
 
@@ -239,16 +288,27 @@ handler = DataHandler()
 
 dataset = torch.load("tensorset.pt", weights_only=False)
 
-'''
-train_size = 35
-val_size = 5000
-'''
 
-train_size = (int(len(dataset) * .8))
+train_split = .8
+
+train_size = (int(len(dataset) * train_split))
 val_size = len(dataset) - train_size
 
 unused_size = len(dataset) - train_size - val_size
 
 train_split, val_split, no_used = random_split(dataset, [train_size, val_size, unused_size])
 
-ChessModel().train(train_dataset=train_split, dev_dataset=val_split, num_epochs=50, batch_size=128)
+ChessModel().train(train_dataset=train_split, dev_dataset=val_split, num_epochs=25, batch_size=128)
+
+
+'''
+    TODO: List
+    Construct Loss Graphs
+    Construct Accuracy Graphs
+    Change file location to just take a name of model
+    Increase Graph Visual Appeal
+    Load Models from File
+    Move outside train code to train
+    Allow Model to Predict Board Posistions
+    Playable Chessbot
+'''
