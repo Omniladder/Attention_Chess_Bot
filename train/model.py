@@ -3,6 +3,7 @@
 """
 
 import typing
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -38,10 +39,9 @@ class InitBlock(nn.Module):
         
     
     def forward(self, inputs):
-
         if not isinstance(inputs, torch.Tensor):
             raise ValueError(f"Invalid Type Final Layer {type(inputs)} expected {type(torch.Tensor)}")
-        inputs = torch.squeeze(inputs)
+        #inputs = torch.squeeze(inputs)
         if inputs.size(1) != self.input_size:
             raise ValueError(f"inputs Board Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.input_size}")
         
@@ -297,11 +297,19 @@ class ChessModel():
         
         return loss / count, num_correct / count
 
+    def predict(self, game_state: chess.Board) -> List[float]:
+        tensor_board = self.handler.board_to_tensor(game_state)
+        tensor_board = tensor_board.unsqueeze(dim=0)
+        print(tensor_board.shape)
+        return self.model(tensor_board).tolist()
 
 
 
 ChessModel(model_width = 3, model_depth=2).train(num_epochs=5, batch_size=128)
-
+'''
+model = ChessModel(model_width = 3, model_depth=2)
+print(model.predict(chess.Board()))
+'''
 
 '''
     TODO: List
