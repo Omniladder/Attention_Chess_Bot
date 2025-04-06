@@ -33,6 +33,8 @@ class InitBlock(nn.Module):
         self.linear = nn.Linear(self.input_size, model_width)
         self.layer_norm = nn.LayerNorm(model_width)
         self.model_width = model_width
+        self.initializer = nn.init.xavier_normal_(self.linear.weight)
+        
         
     
     def forward(self, inputs):
@@ -44,8 +46,8 @@ class InitBlock(nn.Module):
             raise ValueError(f"inputs Board Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.input_size}")
         
         embedding = self.linear(inputs)
-        embedding = self.activ(embedding)
         embedding = self.layer_norm(embedding)
+        embedding = self.activ(embedding)
         embedding = self.dropout(embedding)
 
         return embedding
@@ -59,6 +61,7 @@ class FinalBlock(nn.Module):
         self.linear = nn.Linear(model_width, self.output_size)
         self.layer_norm = nn.LayerNorm(model_width)
         self.model_width = model_width
+        self.initializer = nn.init.xavier_normal_(self.linear.weight)
     
     
     def forward(self, inputs):
@@ -83,7 +86,8 @@ class HiddenBlock(nn.Module):
         self.layer_norm = nn.LayerNorm(model_width)
         self.activ = nn.GELU()
         self.dropout = nn.Dropout(dropout_rate)
-    
+        self.initializer = nn.init.xavier_normal_(self.linear.weight)
+
     def forward(self, inputs):
         if not isinstance(inputs, torch.Tensor):
             raise ValueError(f"Invalid Type Final Layer {type(inputs)} expected {type(torch.Tensor)}")
@@ -92,9 +96,9 @@ class HiddenBlock(nn.Module):
             raise ValueError(f"Layer Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.model_width}")
         
         embedding = self.linear(inputs)
+        embedding = self.layer_norm(embedding)
         embedding = self.activ(embedding)
         embedding = embedding + inputs # Applies Residual Connection
-        embedding = self.layer_norm(embedding)
         embedding = self.dropout(embedding)
 
         return embedding
@@ -135,7 +139,7 @@ class ChessModel():
     """
     def __init__(self, model_width: int = 120, model_depth: int = 5, dropout_rate: float = .3):
         self.model = ChessArch(model_width=model_width, model_depth=model_depth, dropout_rate=dropout_rate)
-        self.optim = torch.optim.Adam(self.model.parameters())
+        self.optim = torch.optim.AdamW(self.model.parameters())
         self.handler = DataHandler()
         self.criterion = nn.CrossEntropyLoss()
         self.scheduler = StepLR(self.optim, step_size=10, gamma=0.1)
@@ -213,7 +217,7 @@ class ChessModel():
                 self.optim.zero_grad()
 
 
-#            self.scheduler.step()
+            self.scheduler.step()
             train_loss, train_acc = self.__evaluate(train_dataloader)
             dev_loss, dev_acc = self.__evaluate(dev_dataloader)
 
@@ -298,7 +302,7 @@ unused_size = len(dataset) - train_size - val_size
 
 train_split, val_split, no_used = random_split(dataset, [train_size, val_size, unused_size])
 
-ChessModel().train(train_dataset=train_split, dev_dataset=val_split, num_epochs=25, batch_size=128)
+ChessModel(model_width = 3, model_depth=2).train(train_dataset=train_split, dev_dataset=val_split, num_epochs=5, batch_size=128)
 
 
 '''
