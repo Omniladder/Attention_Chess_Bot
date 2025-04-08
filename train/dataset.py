@@ -63,7 +63,7 @@ class DataHandler:
                 raise ValueError(f"Unknown Winning Player: {winner}")
 
     def get_lichess_dataset(
-        self, dataset_path: str = "../data/Small_chess_data.csv"
+        self, dataset_path: str = "../data/Small_chess_data.csv", min_elo: int = 1000 
     ) -> pd.DataFrame:
         """
         Function that gets and cleans Lichess Dataset for Usage
@@ -72,7 +72,25 @@ class DataHandler:
             raise FileNotFoundError(f"Could Not Find File {dataset_path}")
 
         dataset = pd.read_csv(dataset_path)
+
+        dataset = dataset[(dataset['WhiteElo' >= min_elo]) & (dataset['BlackElo' >= min_elo])]
+
         dataset = dataset.filter(["moves", "winner"])
+
+        dataset["winner"] = dataset["winner"].apply(self.__winner_to_tensor)
+
+        return dataset
+    
+    def get_gm_dataset(
+        self, dataset_path: str = "../data/GM_games.csv" 
+    ) -> pd.DataFrame:
+        """
+        Function that gets a GM Dataset for Usage
+        """
+        if not os.path.exists(dataset_path):
+            raise FileNotFoundError(f"Could Not Find File {dataset_path}")
+
+        dataset = pd.read_csv(dataset_path)
 
         dataset["winner"] = dataset["winner"].apply(self.__winner_to_tensor)
 
