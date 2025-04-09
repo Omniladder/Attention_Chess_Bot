@@ -39,6 +39,7 @@ class InitBlock(nn.Module):
         
     
     def forward(self, inputs):
+
         if not isinstance(inputs, torch.Tensor):
             raise ValueError(f"Invalid Type Final Layer {type(inputs)} expected {type(torch.Tensor)}")
         #inputs = torch.squeeze(inputs)
@@ -166,9 +167,11 @@ class ChessModel():
         start_board = chess.Board()
         input_embedding = self.handler.board_to_tensor(start_board)
 
+        input_embedding = torch.unsqueeze(input_embedding, dim=0)
+
         output_embedding = self.model(input_embedding)
 
-        assert output_embedding.shape[0] == 3
+        assert output_embedding.shape[1] == 3
 
         #print(f"Input Embedding: {input_embedding}")
         print(f"Output Embedding: {output_embedding}")
@@ -248,7 +251,7 @@ class ChessModel():
                 best_loss = dev_loss
                 print("New Best Model ::Saving::")
                 torch.save(self.model.state_dict(), save_path)
-
+            print()
         plt.plot([i for i in range(len(train_loss_series))], train_loss_series, label='Training Loss', color='blue')
         plt.plot([i for i in range(len(dev_loss_series))], dev_loss_series, label='Dev Loss', color='red')
         plt.legend()
@@ -298,18 +301,18 @@ class ChessModel():
         return loss / count, num_correct / count
 
     def predict(self, game_state: chess.Board) -> List[float]:
-        tensor_board = self.handler.board_to_tensor(game_state)
-        tensor_board = tensor_board.unsqueeze(dim=0)
-        print(tensor_board.shape)
-        return self.model(tensor_board).tolist()
+        encoding = self.handler.board_to_tensor(game_state)
+        encoding = torch.unsqueeze(encoding, dim=0)
+        
+        return self.model(encoding).tolist()[0]
 
 
 
-ChessModel(model_width = 3, model_depth=2).train(num_epochs=5, batch_size=128)
-'''
+#ChessModel(model_width = 3, model_depth=2).train(num_epochs=5, batch_size=128)
 model = ChessModel(model_width = 3, model_depth=2)
+#model.train()
+model.test_model()
 print(model.predict(chess.Board()))
-'''
 
 '''
     TODO: List
