@@ -74,8 +74,10 @@ class FinalBlock(nn.Module):
             raise ValueError(f"Final Tensor Improper Size: \n Received Size: {inputs.size(0)} \n Expected Size: {self.model_widthi}")
         
         embedding = self.linear(inputs)
-        embedding = F.log_softmax(embedding, dim=0)
+        #print("Embedding " + str(embedding))
+        embedding = F.softmax(embedding, dim=1)
 
+        
         return embedding
 
 class HiddenBlock(nn.Module):
@@ -120,6 +122,10 @@ class ChessArch(nn.Module):
 
         for _ in range(model_depth):
             self.hidden_layers.append(HiddenBlock(model_width, dropout_rate))
+        '''
+        for i, (name, param) in enumerate(self.named_parameters()):
+            print(i, name, param.data)
+        '''
 
     def forward(self, inputs):
         if not isinstance(inputs, torch.Tensor):
@@ -311,7 +317,7 @@ class ChessModel():
 #ChessModel(model_width = 3, model_depth=2).train(num_epochs=5, batch_size=128)
 model = ChessModel(model_width = 3, model_depth=2)
 #model.train()
-model.test_model()
+#model.test_model()
 print(model.predict(chess.Board()))
 
 '''
