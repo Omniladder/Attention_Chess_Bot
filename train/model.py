@@ -122,10 +122,6 @@ class ChessArch(nn.Module):
 
         for _ in range(model_depth):
             self.hidden_layers.append(HiddenBlock(model_width, dropout_rate))
-        '''
-        for i, (name, param) in enumerate(self.named_parameters()):
-            print(i, name, param.data)
-        '''
 
     def forward(self, inputs):
         if not isinstance(inputs, torch.Tensor):
@@ -309,6 +305,7 @@ class ChessModel():
     def predict(self, game_state: chess.Board) -> List[float]:
         encoding = self.handler.board_to_tensor(game_state)
         encoding = torch.unsqueeze(encoding, dim=0)
+        encoding = encoding.to(self.gpu)
         
         return self.model(encoding).tolist()[0]
 
