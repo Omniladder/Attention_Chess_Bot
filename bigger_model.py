@@ -339,7 +339,7 @@ class EnhancedChessModel:
     """
     def __init__(
         self, 
-        lr: float = 0.001, 
+        lr: float = 0.001,  
         model_width: int = 256, 
         model_depth: int = 8, 
         num_heads: int = 4,
