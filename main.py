@@ -72,7 +72,7 @@ class MCTS:
         """Use the model to predict game outcome from a position"""
         if self.model is None:
             # Fallback evaluation if no model is available
-            return self._simple_evaluation(board)
+            return self.simple_evaluation(board)
 
         prediction = self.model.predict(board)
         # Convert to a single score from white's perspective
@@ -83,7 +83,7 @@ class MCTS:
 
         return white_win_prob + 0.5 * draw_prob
 
-    def _simple_evaluation(self, board: chess.Board) -> float:
+    def simple_evaluation(self, board: chess.Board) -> float:
         """Simple material-based evaluation when no model is available"""
         if board.is_checkmate():
             return 0.0 if board.turn == chess.WHITE else 1.0
@@ -205,7 +205,7 @@ class ChessGuiBoard(QSvgWidget):
         self.legal_moves = []
         self.flipped = False
         self.last_move = None
-        self.setFixedSize(510, 510)
+        self.setFixedSize(625, 625)
         self.setMouseTracking(True)
         self.update_board()
 
@@ -368,7 +368,7 @@ class ChessGameInfo(QWidget):
         self.status_label.setFont(font)
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("""
-            color: #333333;
+            color: black;
             background-color: #e0e0e0;
             border: 1px solid #aaaaaa;
             border-radius: 4px;
@@ -396,10 +396,38 @@ class ChessGameInfo(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setFixedHeight(400)
         self.scroll_area.setStyleSheet("""
-            background-color: #333333;
-            border: 1px solid #222222;
-            border-top: none;
-            border-bottom: none;
+            QScrollArea {
+                background-color: #333333;
+                border: 1px solid #222222;
+                border-top: none;
+                border-bottom: none;
+            }
+    
+            QScrollBar:vertical {
+                background-color: #2a2a2a;
+                width: 14px;
+                margin: 0px;
+            }
+    
+            QScrollBar::handle:vertical {
+                background-color: #666666;
+                min-height: 20px;
+                border-radius: 4px;
+                margin: 2px;
+                width: 10px;
+            }
+    
+            QScrollBar::handle:vertical:hover {
+                background-color: #888888;
+            }
+    
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+    
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
+            }
         """)
 
         # Create the move history label inside a container widget
@@ -412,8 +440,11 @@ class ChessGameInfo(QWidget):
         self.move_history.setStyleSheet("""
             background-color: #333333; 
             color: #ffffff; 
-            font-size: 14px;
-            padding: 5px;
+            font-size: 18px;
+            padding: 4px 12px;
+            font-family: 'Consolas', monospace;
+            line-height: 2.0;
+            font-weight: normal;
         """)
         history_layout.addWidget(self.move_history)
 
@@ -509,17 +540,17 @@ class ChessControlPanel(QWidget):
         self.new_game_btn = (QPushButton("New Game"))
         self.new_game_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.new_game_btn.setStyleSheet("font-size: 14px;")
-        self.new_game_btn.setFixedSize(160, 40)
+        self.new_game_btn.setFixedSize(180, 40)
 
         self.flip_board_btn = (QPushButton("Flip Board"))
         self.flip_board_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.flip_board_btn.setStyleSheet("font-size: 14px;")
-        self.flip_board_btn.setFixedSize(160, 40)
+        self.flip_board_btn.setFixedSize(180, 40)
 
         self.undo_move_btn = (QPushButton("Undo Move"))
         self.undo_move_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.undo_move_btn.setStyleSheet("font-size: 14px;")
-        self.undo_move_btn.setFixedSize(160, 40)
+        self.undo_move_btn.setFixedSize(180, 40)
 
         button_layout.addWidget(self.new_game_btn)
         button_layout.addWidget(self.undo_move_btn)
@@ -533,7 +564,7 @@ class ChessControlPanel(QWidget):
         white_label.setStyleSheet("font-weight: bold; font-size: 16px;")
         self.white_player = QComboBox()
         self.white_player.addItems(["Human", "AI"])
-        self.white_player.setStyleSheet("font-size: 14px; min-height: 30px;")
+        self.white_player.setStyleSheet("font-size: 14px; height: 22px;")
         self.white_player.setMinimumWidth(100)
 
         # Black player selection
@@ -541,14 +572,14 @@ class ChessControlPanel(QWidget):
         black_label.setStyleSheet("font-weight: bold; font-size: 16px;")
         self.black_player = QComboBox()
         self.black_player.addItems(["Human", "AI"])
-        self.black_player.setStyleSheet("font-size: 14px; min-height: 30px;")
+        self.black_player.setStyleSheet("font-size: 14px; height: 22px;")
         self.black_player.setMinimumWidth(100)
 
         # AI strength slider
         strength_label = QLabel("AI Strength:")
         strength_label.setStyleSheet("font-weight: bold; font-size: 16px;")
         self.strength_value = QLabel("1000")
-        self.strength_value.setStyleSheet("font-size: 14px;")
+        self.strength_value.setStyleSheet("font-size: 16px;")
 
         self.strength_slider = QSlider(Qt.Horizontal)
         self.strength_slider.setMinimum(100)
@@ -560,9 +591,9 @@ class ChessControlPanel(QWidget):
         self.strength_slider.setTickPosition(QSlider.TicksBelow)
         self.strength_slider.setStyleSheet("""
             QSlider::groove:horizontal {
-                height: 8px;
+                height: 10px;
                 background: #ccc;
-                margin: 2px 0;
+                margin-top: 5px;
             }
             QSlider::handle:horizontal {
                 background: #555;
@@ -628,7 +659,7 @@ class ChessEvaluationWidget(QWidget):
         self.eval_label.setStyleSheet("""
             font-weight: bold;
             font-size: 16px;
-            color: #333333;
+            color: black;
             background-color: #e0e0e0;
             border: 1px solid #aaaaaa;
             border-radius: 4px;
@@ -665,75 +696,19 @@ class ChessEvaluationWidget(QWidget):
         layout.addWidget(self.eval_label)
         layout.addWidget(prob_widget)
 
-        # Simple numerical evaluation
-        self.eval_text = QLabel("Evaluation: 0.0")
-        self.eval_text.setAlignment(Qt.AlignCenter)
-        font = QFont()
-        font.setPointSize(16)
-        font.setBold(True)
-        self.eval_text.setFont(font)
-        self.eval_text.setStyleSheet("""
-            background-color: #e0e0e0;
-            border: 1px solid #aaaaaa;
-            border-radius: 4px;
-            font-size: 16px;
-        """)
-        layout.addWidget(self.eval_text)
-
-        layout.addStretch()
         self.setLayout(layout)
 
         # Keep track of evaluation
-        self.evaluation = 0.0
         self.probabilities = [0.33, 0.34, 0.33]
 
     def update_evaluation(self, probabilities: List[float]):
         """Update the evaluation display based on model probabilities"""
         self.probabilities = probabilities
 
-        # Calculate evaluation score (from -100 to +100)
-        evaluation = (probabilities[0] - probabilities[2]) * 100
-        self.evaluation = evaluation
-
         # Update text labels with percentages
         self.white_prob.setText(f"White: {probabilities[0]:.0%}")
         self.draw_prob.setText(f"Draw: {probabilities[1]:.0%}")
         self.black_prob.setText(f"Black: {probabilities[2]:.0%}")
-
-        # Update numerical evaluation
-        self.eval_text.setText(f"Evaluation: {evaluation:.1f}")
-
-        # Add color coding based on who's ahead
-        if evaluation > 5:
-            self.eval_text.setStyleSheet("""
-                margin: 10px;
-                padding: 8px;
-                background-color: #e0e0e0;
-                border: 1px solid #aaaaaa;
-                border-radius: 4px;
-                color: #0000cc;
-                font-size: 16px;
-            """)
-        elif evaluation < -5:
-            self.eval_text.setStyleSheet("""
-                margin: 10px;
-                padding: 8px;
-                background-color: #e0e0e0;
-                border: 1px solid #aaaaaa;
-                border-radius: 4px;
-                color: #cc0000;
-                font-size: 16px;
-            """)
-        else:
-            self.eval_text.setStyleSheet("""
-                margin: 10px;
-                padding: 8px;
-                background-color: #e0e0e0;
-                border: 1px solid #aaaaaa;
-                border-radius: 4px;
-                color: #000000;
-                font-size: 16px;
-            """)
 
 
 class ChessMainWindow(QMainWindow):
@@ -744,7 +719,7 @@ class ChessMainWindow(QMainWindow):
 
         # Set window title and fixed size
         self.setWindowTitle("Chess with AI")
-        self.setFixedSize(900, 650)
+        self.setFixedSize(1024, 768)
 
         # Initialize central widget and layout
         central_widget = QWidget()
@@ -776,8 +751,8 @@ class ChessMainWindow(QMainWindow):
         self.game_info = ChessGameInfo()
 
         # Add widgets to right layout
-        right_layout.addWidget(self.eval_widget)
         right_layout.addWidget(self.game_info)
+        right_layout.addWidget(self.eval_widget)
         right_panel.setLayout(right_layout)
 
         # Add panels to main layout

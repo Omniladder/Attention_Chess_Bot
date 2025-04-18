@@ -19,7 +19,7 @@ class ChessGuiBoard(QSvgWidget):
         self.legal_moves = []
         self.flipped = False
         self.last_move = None
-        self.setFixedSize(510, 510)
+        self.setFixedSize(670, 670)
         self.setMouseTracking(True)
         self.update_board()
 
@@ -182,36 +182,66 @@ class ChessGameInfo(QWidget):
         self.status_label.setFont(font)
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("""
-            color: #333333;
+            color: black;
             background-color: #e0e0e0;
             border: 1px solid #aaaaaa;
             border-radius: 4px;
-            padding: 5px;
+            padding: 8px;
             margin-bottom: 10px;
+            font-size: 16px;
         """)
 
         # Move history label
         self.history_label = QLabel("Move History:")
-        self.history_label.setFont(QFont("Arial", 10, QFont.Bold))
+        self.history_label.setFont(QFont("Arial", 14, QFont.Bold))
         self.history_label.setStyleSheet("""
-            padding: 5px;
-            background-color: #555555;
-            color: white;
-            border-top-left-radius: 6px;
-            border-top-right-radius: 6px;
-            border: 1px solid #222222;
-            border-bottom: none;
-        """)
+                    padding: 8px;
+                    background-color: #555555;
+                    color: white;
+                    border-top-left-radius: 6px;
+                    border-top-right-radius: 6px;
+                    border: 1px solid #222222;
+                    border-bottom: none;
+                    font-size: 16px;
+                """)
 
         # Create a scrollable area for move history
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFixedHeight(400)
+        self.scroll_area.setFixedHeight(550)
         self.scroll_area.setStyleSheet("""
-            background-color: #333333;
-            border: 1px solid #222222;
-            border-top: none;
-            border-bottom: none;
+            QScrollArea {
+                background-color: #333333;
+                border: 1px solid #222222;
+                border-top: none;
+                border-bottom: none;
+            }
+
+            QScrollBar:vertical {
+                background-color: #2a2a2a;
+                width: 14px;
+                margin: 0px;
+            }
+
+            QScrollBar::handle:vertical {
+                background-color: #666666;
+                min-height: 20px;
+                border-radius: 4px;
+                margin: 2px;
+                width: 10px;
+            }
+
+            QScrollBar::handle:vertical:hover {
+                background-color: #888888;
+            }
+
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
+            }
         """)
 
         # Create the move history label inside a container widget
@@ -224,6 +254,11 @@ class ChessGameInfo(QWidget):
         self.move_history.setStyleSheet("""
             background-color: #333333; 
             color: #ffffff; 
+            font-size: 18px;
+            padding: 4px 12px;
+            font-family: 'Consolas', monospace;
+            line-height: 2.0;
+            font-weight: normal;
         """)
         history_layout.addWidget(self.move_history)
 
@@ -314,15 +349,15 @@ class ChessControlPanel(QWidget):
         self.new_game_btn = (QPushButton("New Game"))
         self.new_game_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.new_game_btn.setStyleSheet("font-size: 14px;")
-        self.new_game_btn.setFixedSize(160,40)
+        self.new_game_btn.setFixedSize(180,40)
         self.flip_board_btn = (QPushButton("Flip Board"))
         self.flip_board_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.flip_board_btn.setStyleSheet("font-size: 14px;")
-        self.flip_board_btn.setFixedSize(160, 40)
+        self.flip_board_btn.setFixedSize(180, 40)
         self.undo_move_btn = (QPushButton("Undo Move"))
         self.undo_move_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.undo_move_btn.setStyleSheet("font-size: 14px;")
-        self.undo_move_btn.setFixedSize(160, 40)
+        self.undo_move_btn.setFixedSize(180, 40)
 
         layout.addWidget(self.new_game_btn)
         layout.addWidget(self.undo_move_btn)
@@ -343,7 +378,7 @@ class ChessMainWindow(QMainWindow):
 
         # Set window title and fixed size
         self.setWindowTitle("Chess")
-        self.setFixedSize(800, 600)
+        self.setFixedSize(1024, 768)
 
         # Initialize central widget and layout
         central_widget = QWidget()

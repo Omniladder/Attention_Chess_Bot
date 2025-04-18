@@ -1,7 +1,11 @@
 pandas
 python-chess
 torch
+torch-cuda
 scikit-learn
 tqdm
 numpy
 matplotlib
+
+PySide6
+python-chess
