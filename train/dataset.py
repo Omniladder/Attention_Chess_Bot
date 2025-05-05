@@ -100,8 +100,8 @@ class DataHandler:
         """
         Function to turn chess asymptomatic notation into list FEN Strings
         """
-
-        move_str_array = game_moves.split(" ")
+        move_str_array = game_moves.strip().split(" ")
+        
         game_state = chess.Board()
 
         predf = []
@@ -119,12 +119,15 @@ class DataHandler:
 
         df = [[], []]
         for data_index in tqdm(range(len(game_dataset)), desc="Converting Dataset to Tensorset"):
-            new_posistions = self.__anot_to_tensor(
-                game_dataset["moves"][data_index]
-            )
-            # df._append(new_posistions, ignore_index = True) #Using Illegal functions because the real ones are slow TF
-            df[0].extend(new_posistions)
-            df[1].extend([game_dataset["winner"][data_index]] * len(new_posistions))
+            try:
+                new_posistions = self.__anot_to_tensor(
+                    game_dataset["moves"][data_index]
+                )
+                # df._append(new_posistions, ignore_index = True) #Using Illegal functions because the real ones are slow TF
+                df[0].extend(new_posistions)
+                df[1].extend([game_dataset["winner"][data_index]] * len(new_posistions))
+            except:
+                continue
 
 
 
@@ -155,3 +158,30 @@ class DataHandler:
             ] = 1
 
         return tensor
+
+    def average_tensors(self, tensorset: TensorDataset) -> TensorDataset:
+
+        inputs_data, output_data = tensorset.tensors
+
+        x_to_sum = {}
+        x_to_count = {}
+
+        for inp, out in zip(inputs_data, output_data):
+            key = tuple(inp.tolist())
+            if key in x_to_sum:
+                x_to_sum[key] += out
+                x_to_count[key] += 1
+            else:
+                x_to_sum[key] = out.clone()
+                x_to_count[key] = 1
+        
+        new_x = []
+        new_y = []
+
+        for key in x_to_sum:
+            new_x.append(torch.tensor(key, dtype=inputs_data.dtype))
+            new_y.append(x_to_sum[key] / x_to_count[key])
+        
+        return TensorDataset(torch.stack(new_x), torch.stack(new_y))
+
+            
