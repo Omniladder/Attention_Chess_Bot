@@ -98,4 +98,4 @@ if not all_chess_games.empty:
     print(f"Results distribution:\n{all_chess_games['winner'].value_counts()}")
     
     # Save to CSV
-    all_chess_games.to_csv("./data/GM_games.csv", index=False)
+    all_chess_games.to_csv("./data/GM_games_small.csv", index=False)
