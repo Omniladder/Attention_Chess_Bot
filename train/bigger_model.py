@@ -150,7 +150,7 @@ class FinalBlock(nn.Module):
         
         # Output layer
         embedding = self.linear2(embedding)
-        embedding = F.softmax(embedding, dim=1)
+        embedding = F.log_softmax(embedding, dim=1)
         
         return embedding
 
@@ -201,82 +201,6 @@ class EnhancedChessArch(nn.Module):
         return output
 
 
-# class PositionAverager:
-#     """
-#     Class to handle position averaging across multiple games
-#     """
-#     def __init__(self):
-#         self.position_stats = defaultdict(lambda: [0, 0, 0])
-#         self.position_counts = defaultdict(int)
-    
-#     def _board_to_fen_key(self, board: chess.Board) -> str:
-#         """Convert board to a simplified FEN key without move counters"""
-#         fen = board.fen()
-#         # Remove move counters from FEN to focus on position only
-#         fen_parts = fen.split(' ')
-#         return ' '.join(fen_parts[:4])
-    
-#     def add_position(self, board: chess.Board, outcome: torch.Tensor) -> None:
-#         """Add a position and its outcome to the averaging system"""
-#         key = self._board_to_fen_key(board)
-#         outcome_list = outcome.tolist()
-        
-#         # Accumulate the outcomes
-#         current = self.position_stats[key]
-#         self.position_stats[key] = [current[i] + outcome_list[i] for i in range(3)]
-#         self.position_counts[key] += 1
-    
-#     def get_average_outcome(self, board: chess.Board) -> torch.Tensor:
-#         """Get the average outcome for a position"""
-#         key = self._board_to_fen_key(board)
-#         if key in self.position_stats:
-#             stats = self.position_stats[key]
-#             count = self.position_counts[key]
-#             return torch.tensor([float(stat) / count for stat in stats])
-#         else:
-#             # Default to even probabilities if position not seen
-#             return torch.tensor([0.33, 0.34, 0.33])
-    
-#     def get_all_positions(self) -> Dict[str, torch.Tensor]:
-#         """Get all positions with their average outcomes"""
-#         result = {}
-#         for key in self.position_stats:
-#             stats = self.position_stats[key]
-#             count = self.position_counts[key]
-#             result[key] = torch.tensor([float(stat) / count for stat in stats])
-#         return result
-    
-#     def create_averaged_dataset(self, original_dataset: TensorDataset) -> TensorDataset:
-#         """Create a new dataset with averaged position outcomes"""
-#         # First, gather all unique positions and average their outcomes
-#         positions = {}
-#         position_handler = DataHandler()
-        
-#         print("Building position averages...")
-#         for i in tqdm(range(len(original_dataset))):
-#             board_tensor, outcome = original_dataset[i]
-#             tensor_key = tuple(board_tensor.tolist())
-            
-#             if tensor_key in positions:
-#                 positions[tensor_key][0] += outcome
-#                 positions[tensor_key][1] += 1
-#             else:
-#                 positions[tensor_key] = [outcome, 1]
-        
-#         # Create a new dataset with averaged positions
-#         new_tensors = []
-#         new_outcomes = []
-        
-#         print("Creating averaged dataset...")
-#         for tensor_key, (outcome_sum, count) in tqdm(positions.items()):
-#             board_tensor = torch.tensor(list(tensor_key))
-#             avg_outcome = outcome_sum / count
-#             new_tensors.append(board_tensor)
-#             new_outcomes.append(avg_outcome)
-        
-#         return TensorDataset(torch.stack(new_tensors), torch.stack(new_outcomes))
-
-
 class EnhancedChessModel:
     """
     Enhanced Chess Evaluation Engine Interface with position averaging
@@ -303,7 +227,7 @@ class EnhancedChessModel:
             weight_decay=weight_decay
         )
         self.handler = DataHandler()
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.KLDivLoss(reduction='batchmean')
         self.scheduler = ReduceLROnPlateau(
             self.optim, 
             mode='min', 
@@ -663,7 +587,7 @@ class EnhancedChessModel:
         encoding = torch.unsqueeze(encoding, dim=0).to(self.device)
         
         with torch.no_grad():
-            prediction = self.model(encoding).cpu().tolist()[0]
+            prediction = np.exp(self.model(encoding).cpu()).tolist()[0]
         
         return prediction
     
@@ -707,9 +631,9 @@ class EnhancedChessModel:
 if __name__ == "__main__":
     # Configuration
     MODEL_WIDTH = 256       # Increased from original model
-    MODEL_DEPTH = 8         # Increased from original model
+    MODEL_DEPTH = 8       # Increased from original model
     NUM_HEADS = 4           # New parameter for attention mechanism
-    LEARNING_RATE = 5e-4
+    LEARNING_RATE = 1e-3
     BATCH_SIZE = 256
     NUM_EPOCHS = 5
     DROPOUT_RATE = 0.2
