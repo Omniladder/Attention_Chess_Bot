@@ -1,6 +1,6 @@
 #  Author: Kyle Tranfaglia
 #  Title: dataTester - data cleaning, filtering, and concatenation
-#  Last updated: 04/07/25
+#  Last updated: 05/05/25
 #  Description: This program uses the pandas library to store chess games in a data frame after
 #  extraction from pgn files plus cleaning, filtering, and concatenation
 import pandas as pd
@@ -20,20 +20,22 @@ def read_pgn(pgn_file_path):
             
             # Empty line separates games
             if not line:
-                if moves:
+                if moves:  # Only add games that have moves
                     # Process the moves to remove numbering
                     combined_moves = ' '.join(moves)
                     # Replace move numbers (like "1.", "2.", etc.)
                     clean_moves = re.sub(r'\d+\.+\s*', '', combined_moves)
                     # Remove result from the move list
                     clean_moves = clean_moves.replace('1-0', '').replace('0-1', '').replace('1/2-1/2', '').replace('*', '')
-
                     
-                    games.append({
-                        'winner': current_result,
-                        # 'ECO': current_eco
-                        'moves': clean_moves
-                    })
+                    # Only add the game if there are actual moves after cleaning
+                    if clean_moves.strip():
+                        games.append({
+                            'winner': current_result,
+                            # 'ECO': current_eco
+                            'moves': clean_moves.strip()
+                        })
+                    
                     current_result = None
                     # current_eco = None  # Reset ECO
                     moves = []
@@ -55,6 +57,19 @@ def read_pgn(pgn_file_path):
             elif not line.startswith('['):
                 moves.append(line)
         
+    # Last game in the file (if any)
+    if moves:
+        combined_moves = ' '.join(moves)
+        clean_moves = re.sub(r'\d+\.+\s*', '', combined_moves)
+        clean_moves = clean_moves.replace('1-0', '').replace('0-1', '').replace('1/2-1/2', '').replace('*', '')
+        
+        if clean_moves.strip():
+            games.append({
+                'winner': current_result,
+                # 'ECO': current_eco
+                'moves': clean_moves.strip()
+            })
+    
     return pd.DataFrame(games)
 
 # Read all PGN files in a directory
@@ -79,6 +94,8 @@ def read_all_pgn_files(data_folder):
     # Combine (concatenate) all DataFrames
     if all_games:
         combined_df = pd.concat(all_games, ignore_index=True)
+        # Additional filter to remove any remaining rows with NaN moves
+        combined_df = combined_df.dropna(subset=['moves'])
         print(f"\nTotal games loaded: {len(combined_df)}")
         return combined_df
     else:
