@@ -23,59 +23,6 @@ from sklearn.model_selection import train_test_split
 
 from dataset import DataHandler
 
-
-class AttentionBlock(nn.Module):
-    """Self-attention mechanism for chess position evaluation"""
-    def __init__(self, model_width: int, num_heads: int = 4, dropout_rate: float = 0.3):
-        super(AttentionBlock, self).__init__()
-        self.model_width = model_width
-        self.num_heads = num_heads
-        self.head_dim = model_width // num_heads
-        
-        assert model_width % num_heads == 0, "Model width must be divisible by number of heads"
-        
-        self.query = nn.Linear(model_width, model_width)
-        self.key = nn.Linear(model_width, model_width)
-        self.value = nn.Linear(model_width, model_width)
-        
-        self.proj = nn.Linear(model_width, model_width)
-        self.dropout = nn.Dropout(dropout_rate)
-        self.layer_norm = nn.LayerNorm(model_width)
-        
-        # Initialize weights
-        nn.init.xavier_normal_(self.query.weight)
-        nn.init.xavier_normal_(self.key.weight)
-        nn.init.xavier_normal_(self.value.weight)
-        nn.init.xavier_normal_(self.proj.weight)
-    
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        batch_size = x.size(0)
-        residual = x
-        
-        # Project and reshape for multi-head attention
-        q = self.query(x).view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.key(x).view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
-        v = self.value(x).view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
-        
-        # Scaled dot-product attention
-        scores = torch.matmul(q, k.transpose(-2, -1)) / np.sqrt(self.head_dim)
-        attention_weights = F.softmax(scores, dim=-1)
-        attention_weights = self.dropout(attention_weights)
-        
-        # Apply attention to values
-        context = torch.matmul(attention_weights, v)
-        context = context.transpose(1, 2).contiguous().view(batch_size, -1, self.model_width)
-        
-        # Final projection
-        output = self.proj(context)
-        output = self.dropout(output)
-        
-        # Residual connection and layer normalization
-        output = self.layer_norm(output + residual)
-        
-        return output
-
-
 class InitBlock(nn.Module):
     def __init__(self, model_width: int, dropout_rate: float = 0.3):
         super(InitBlock, self).__init__()
@@ -155,12 +102,13 @@ class EnhancedHiddenBlock(nn.Module):
     def __init__(self, model_width: int, num_heads: int = 4, dropout_rate: float = 0.3):
         super(EnhancedHiddenBlock, self).__init__()
         self.model_width = model_width
-        self.attention = AttentionBlock(model_width, num_heads, dropout_rate)
+        self.attention = nn.MultiheadAttention(model_width, num_heads, dropout=dropout_rate)
+        #self.attention = AttentionBlock(model_width, num_heads, dropout_rate)
         self.feed_forward = FeedForwardBlock(model_width, dropout_rate=dropout_rate)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Apply attention mechanism
-        x = self.attention(x)
+        x, _ = self.attention(x, x, x)
         
         # Apply feed-forward network
         x = self.feed_forward(x)
@@ -437,7 +385,8 @@ class EnhancedChessModel:
         """
         if tensorset_path and os.path.exists(tensorset_path):
             print(f"Loading existing tensorset from {tensorset_path}")
-            dataset = torch.load(tensorset_path)
+            dataset = torch.load(tensorset_path, weights_only=False)
+            #This is a tuple [0] is board [1] is winner
         else:
             print("Building dataset from GM games...")
             # Create dataset
@@ -447,17 +396,17 @@ class EnhancedChessModel:
             print(f"Saving tensorset to {save_tensorset_path}")
             torch.save(dataset, save_tensorset_path)
         
-        print(f"Dataset size: {len(dataset)}")
-        
+        dataset = TensorDataset(dataset[0], dataset[1])
         # Split dataset into train, validation, and test sets
         train_size = int(len(dataset) * train_test_split_ratio * train_val_split_ratio)
         val_size = int(len(dataset) * train_test_split_ratio) - train_size
         test_size = len(dataset) - train_size - val_size
         
         train_dataset, val_dataset, test_dataset = random_split(
-            dataset, [train_size, val_size, test_size]
+            dataset , [train_size, val_size, test_size]
         )
         
+
         print(f"Train size: {train_size}, Validation size: {val_size}, Test size: {test_size}")
         
         save_path = f"../models/{model_name}.pth"
@@ -466,10 +415,15 @@ class EnhancedChessModel:
         graph_acc_path = f"../results/graphs/{model_name}_acc.png"
         data_path = f"../results/data/{model_name}.csv"
         
+
+
+
+
         # Create data loaders
         train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
         test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
         
         best_val_loss = float('inf')
         early_stopping_counter = 0
@@ -487,7 +441,9 @@ class EnhancedChessModel:
             train_loss = 0
             train_acc = 0
             train_samples = 0
+
             
+
             for batch in tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}", leave=False):
                 inputs, targets = batch
                 inputs = inputs.to(self.device)
@@ -543,12 +499,15 @@ class EnhancedChessModel:
                 torch.save(self.model.state_dict(), best_model_path)
                 early_stopping_counter = 0
             else:
+                print("No Improvement Not Saving")
+                ''' #Removing Early Stop I dont want it to stop
                 early_stopping_counter += 1
                 print(f"  No improvement. Early stopping counter: {early_stopping_counter}/{early_stopping_patience}")
                 
                 if early_stopping_counter >= early_stopping_patience:
                     print("Early stopping triggered!")
                     break
+                '''
         
         # Save final model
         torch.save(self.model.state_dict(), save_path)
@@ -695,16 +654,11 @@ class EnhancedChessModel:
         df.to_csv(data_path, index=False)
         df_test.to_csv(data_path.replace('.csv', '_test.csv'), index=False)
     
-    def predict(self, game_state: chess.Board, use_averaging: bool = True) -> List[float]:
+    def predict(self, game_state: chess.Board) -> List[float]:
         """
         Predict the outcome of a given chess position
         """
-        # If using position averaging and the position exists in our database
-        if use_averaging:
-            if game_state is not None:
-                return game_state.tolist()
         
-        # Otherwise, use the model
         encoding = self.handler.board_to_tensor(game_state)
         encoding = torch.unsqueeze(encoding, dim=0).to(self.device)
         
@@ -755,9 +709,9 @@ if __name__ == "__main__":
     MODEL_WIDTH = 256       # Increased from original model
     MODEL_DEPTH = 8         # Increased from original model
     NUM_HEADS = 4           # New parameter for attention mechanism
-    LEARNING_RATE = 0.001
+    LEARNING_RATE = 5e-4
     BATCH_SIZE = 256
-    NUM_EPOCHS = 30
+    NUM_EPOCHS = 5
     DROPOUT_RATE = 0.2
     
     # Create and train enhanced model
@@ -779,12 +733,12 @@ if __name__ == "__main__":
     
     if TRAIN_NEW:
         print("\nStarting training process...")
-        tensorset_path = "../data/gm_tensorset.pt" if USE_EXISTING_TENSORSET else None
+        tensorset_path = "../data/tensorset.pt" if USE_EXISTING_TENSORSET else None
         
         model.train(
             dataset_path="../data/GM_games.csv",
             tensorset_path=tensorset_path,
-            save_tensorset_path="../data/gm_tensorset.pt",
+            save_tensorset_path="../data/tensorset.pt",
             num_epochs=NUM_EPOCHS,
             batch_size=BATCH_SIZE,
             model_name="enhanced_chess_model"
