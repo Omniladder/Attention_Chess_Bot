@@ -1,5 +1,5 @@
 """
-    Enhanced Chess Model with position averaging and improved architecture
+    Enhanced Chess Model with improved architecture
 """
 
 import os
@@ -253,84 +253,80 @@ class EnhancedChessArch(nn.Module):
         return output
 
 
-class PositionAverager:
-    """
-    Class to handle position averaging across multiple games
-    """
-    def __init__(self):
-        self.position_stats = defaultdict(lambda: [0, 0, 0])
-        self.position_counts = defaultdict(int)
+# class PositionAverager:
+#     """
+#     Class to handle position averaging across multiple games
+#     """
+#     def __init__(self):
+#         self.position_stats = defaultdict(lambda: [0, 0, 0])
+#         self.position_counts = defaultdict(int)
     
-    def _board_to_fen_key(self, board: chess.Board) -> str:
-        """Convert board to a simplified FEN key without move counters"""
-        fen = board.fen()
-        # Remove move counters from FEN to focus on position only
-        fen_parts = fen.split(' ')
-        return ' '.join(fen_parts[:4])
+#     def _board_to_fen_key(self, board: chess.Board) -> str:
+#         """Convert board to a simplified FEN key without move counters"""
+#         fen = board.fen()
+#         # Remove move counters from FEN to focus on position only
+#         fen_parts = fen.split(' ')
+#         return ' '.join(fen_parts[:4])
     
-    def add_position(self, board: chess.Board, outcome: torch.Tensor) -> None:
-        """Add a position and its outcome to the averaging system"""
-        key = self._board_to_fen_key(board)
-        outcome_list = outcome.tolist()
+#     def add_position(self, board: chess.Board, outcome: torch.Tensor) -> None:
+#         """Add a position and its outcome to the averaging system"""
+#         key = self._board_to_fen_key(board)
+#         outcome_list = outcome.tolist()
         
-        # Accumulate the outcomes
-        current = self.position_stats[key]
-        self.position_stats[key] = [current[i] + outcome_list[i] for i in range(3)]
-        self.position_counts[key] += 1
+#         # Accumulate the outcomes
+#         current = self.position_stats[key]
+#         self.position_stats[key] = [current[i] + outcome_list[i] for i in range(3)]
+#         self.position_counts[key] += 1
     
-    def get_average_outcome(self, board: chess.Board) -> torch.Tensor:
-        """Get the average outcome for a position"""
-        key = self._board_to_fen_key(board)
-        if key in self.position_stats:
-            stats = self.position_stats[key]
-            count = self.position_counts[key]
-            return torch.tensor([float(stat) / count for stat in stats])
-        else:
-            # Default to even probabilities if position not seen
-            return torch.tensor([0.33, 0.34, 0.33])
+#     def get_average_outcome(self, board: chess.Board) -> torch.Tensor:
+#         """Get the average outcome for a position"""
+#         key = self._board_to_fen_key(board)
+#         if key in self.position_stats:
+#             stats = self.position_stats[key]
+#             count = self.position_counts[key]
+#             return torch.tensor([float(stat) / count for stat in stats])
+#         else:
+#             # Default to even probabilities if position not seen
+#             return torch.tensor([0.33, 0.34, 0.33])
     
-    def get_all_positions(self) -> Dict[str, torch.Tensor]:
-        """Get all positions with their average outcomes"""
-        result = {}
-        for key in self.position_stats:
-            stats = self.position_stats[key]
-            count = self.position_counts[key]
-            result[key] = torch.tensor([float(stat) / count for stat in stats])
-        return result
+#     def get_all_positions(self) -> Dict[str, torch.Tensor]:
+#         """Get all positions with their average outcomes"""
+#         result = {}
+#         for key in self.position_stats:
+#             stats = self.position_stats[key]
+#             count = self.position_counts[key]
+#             result[key] = torch.tensor([float(stat) / count for stat in stats])
+#         return result
     
-    def create_averaged_dataset(self, original_dataset: TensorDataset) -> TensorDataset:
-        """Create a new dataset with averaged position outcomes"""
-        # First, gather all unique positions and average their outcomes
-        positions = {}
-        position_handler = DataHandler()
+#     def create_averaged_dataset(self, original_dataset: TensorDataset) -> TensorDataset:
+#         """Create a new dataset with averaged position outcomes"""
+#         # First, gather all unique positions and average their outcomes
+#         positions = {}
+#         position_handler = DataHandler()
         
-        print("Building position averages...")
-        for i in tqdm(range(len(original_dataset))):
-            board_tensor, outcome = original_dataset[i]
-            # We need to convert tensor back to board to get FEN
-            # This is inefficient but necessary for the demonstration
-            # In a real implementation, you might want to store FENs alongside tensors
-            # For this example, we'll use the tensor itself as the key
-            tensor_key = tuple(board_tensor.tolist())
+#         print("Building position averages...")
+#         for i in tqdm(range(len(original_dataset))):
+#             board_tensor, outcome = original_dataset[i]
+#             tensor_key = tuple(board_tensor.tolist())
             
-            if tensor_key in positions:
-                positions[tensor_key][0] += outcome
-                positions[tensor_key][1] += 1
-            else:
-                positions[tensor_key] = [outcome, 1]
+#             if tensor_key in positions:
+#                 positions[tensor_key][0] += outcome
+#                 positions[tensor_key][1] += 1
+#             else:
+#                 positions[tensor_key] = [outcome, 1]
         
-        # Create a new dataset with averaged positions
-        new_tensors = []
-        new_outcomes = []
+#         # Create a new dataset with averaged positions
+#         new_tensors = []
+#         new_outcomes = []
         
-        print("Creating averaged dataset...")
-        for tensor_key, (outcome_sum, count) in tqdm(positions.items()):
-            board_tensor = torch.tensor(list(tensor_key))
-            avg_outcome = outcome_sum / count
-            new_tensors.append(board_tensor)
-            new_outcomes.append(avg_outcome)
+#         print("Creating averaged dataset...")
+#         for tensor_key, (outcome_sum, count) in tqdm(positions.items()):
+#             board_tensor = torch.tensor(list(tensor_key))
+#             avg_outcome = outcome_sum / count
+#             new_tensors.append(board_tensor)
+#             new_outcomes.append(avg_outcome)
         
-        return TensorDataset(torch.stack(new_tensors), torch.stack(new_outcomes))
+#         return TensorDataset(torch.stack(new_tensors), torch.stack(new_outcomes))
 
 
 class EnhancedChessModel:
@@ -367,7 +363,6 @@ class EnhancedChessModel:
             patience=3, 
             verbose=True
         )
-        self.position_averager = PositionAverager()
         
         # Device setup
         if torch.cuda.device_count() > 0:
@@ -400,7 +395,7 @@ class EnhancedChessModel:
         print(f"Output Embedding: {output_embedding}")
         print("\n\nEnhanced Model Passed Test\n\n")
     
-    def build_averaged_dataset(self, dataset_path: str) -> TensorDataset:
+    def build_dataset(self, dataset_path: str) -> TensorDataset:
         """
         Build a dataset with position averaging from raw GM games
         """
@@ -412,28 +407,24 @@ class EnhancedChessModel:
         print("Converting to tensor dataset...")
         tensorset = self.handler.dataset_to_tensorset(gm_dataset)
         
-        # Create averaged dataset
-        print("Creating averaged dataset...")
-        averaged_dataset = self.position_averager.create_averaged_dataset(tensorset)
-        
-        return averaged_dataset
+        return tensorset
     
-    def save_averaged_dataset(self, dataset: TensorDataset, save_path: str) -> None:
-        """Save the averaged dataset"""
+    def save_dataset(self, dataset: TensorDataset, save_path: str) -> None:
+        """Save the dataset"""
         torch.save(dataset, save_path)
-        print(f"Averaged dataset saved to {save_path}")
+        print(f"Dataset saved to {save_path}")
     
-    def load_averaged_dataset(self, load_path: str) -> TensorDataset:
-        """Load the averaged dataset"""
+    def load_dataset(self, load_path: str) -> TensorDataset:
+        """Load the dataset"""
         dataset = torch.load(load_path)
-        print(f"Averaged dataset loaded from {load_path}")
+        print(f"Dataset loaded from {load_path}")
         return dataset
     
     def train(
         self, 
         dataset_path: str = "../data/GM_games.csv",
         tensorset_path: Optional[str] = None,
-        save_tensorset_path: str = "../data/averaged_gm_tensorset.pt",
+        save_tensorset_path: str = "../data/gm_tensorset.pt",
         train_test_split_ratio: float = 0.8,
         train_val_split_ratio: float = 0.8,
         num_epochs: int = 30, 
@@ -442,18 +433,18 @@ class EnhancedChessModel:
         early_stopping_patience: int = 5
     ):
         """
-        Train the enhanced model with position averaging
+        Train the enhanced model
         """
         if tensorset_path and os.path.exists(tensorset_path):
             print(f"Loading existing tensorset from {tensorset_path}")
             dataset = torch.load(tensorset_path)
         else:
-            print("Building averaged dataset from GM games...")
-            # Create averaged dataset
-            dataset = self.build_averaged_dataset(dataset_path)
+            print("Building dataset from GM games...")
+            # Create dataset
+            dataset = self.build_dataset(dataset_path)
             
             # Save the processed dataset for future use
-            print(f"Saving averaged tensorset to {save_tensorset_path}")
+            print(f"Saving tensorset to {save_tensorset_path}")
             torch.save(dataset, save_tensorset_path)
         
         print(f"Dataset size: {len(dataset)}")
@@ -710,9 +701,8 @@ class EnhancedChessModel:
         """
         # If using position averaging and the position exists in our database
         if use_averaging:
-            stored_prediction = self.position_averager.get_average_outcome(game_state)
-            if stored_prediction is not None:
-                return stored_prediction.tolist()
+            if game_state is not None:
+                return game_state.tolist()
         
         # Otherwise, use the model
         encoding = self.handler.board_to_tensor(game_state)
@@ -794,7 +784,7 @@ if __name__ == "__main__":
         model.train(
             dataset_path="../data/GM_games.csv",
             tensorset_path=tensorset_path,
-            save_tensorset_path="../data/averaged_gm_tensorset.pt",
+            save_tensorset_path="../data/gm_tensorset.pt",
             num_epochs=NUM_EPOCHS,
             batch_size=BATCH_SIZE,
             model_name="enhanced_chess_model"
