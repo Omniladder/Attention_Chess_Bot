@@ -21,7 +21,7 @@ from torch.utils.data import random_split, DataLoader, TensorDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from sklearn.model_selection import train_test_split
 
-from .dataset import DataHandler
+from dataset import DataHandler
 
 class InitBlock(nn.Module):
     def __init__(self, model_width: int, dropout_rate: float = 0.3):
@@ -226,7 +226,7 @@ class EnhancedChessModel:
             weight_decay=weight_decay
         )
         self.handler = DataHandler()
-        self.criterion = nn.KLDivLoss(reduction='batchmean')
+        self.criterion = nn.KLDivLoss(reduction='batchmean') #Got better results with this
         self.scheduler = ReduceLROnPlateau(
             self.optim, 
             mode='min', 
