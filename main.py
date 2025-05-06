@@ -1,7 +1,7 @@
 import sys
 import math
 import os
-from typing import List, Tuple, Optional
+from typing import List, Optional
 import chess
 import chess.svg
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -63,7 +63,7 @@ class ChessNode:
 
 # Monte Carlo Tree Search for chess moves
 class MCTS:
-    def __init__(self, model, iterations: int = 1000, exploration_weight: float = 1.41):
+    def __init__(self, model, iterations: int = 250, exploration_weight: float = 1.41):
         self.model = model
         self.iterations = iterations
         self.exploration_weight = exploration_weight
@@ -336,6 +336,7 @@ class ChessGuiBoard(QSvgWidget):
 
     def make_move(self, move: chess.Move):
         """Make a move on the board"""
+        # Make the move
         self.board.push(move)
         self.last_move = move
         self.selected_square = None
@@ -471,6 +472,10 @@ class ChessGameInfo(QWidget):
             self.status_label.setText("Stalemate! Game is Drawn")
         elif board.is_insufficient_material():
             self.status_label.setText("Draw by Insufficient Material")
+        elif board.can_claim_threefold_repetition():
+            self.status_label.setText("Draw by Threefold Repetition")
+        elif board.can_claim_fifty_moves():
+            self.status_label.setText("Draw by Fifty-Move Rule")
         elif board.is_check():
             turn = "White" if board.turn == chess.WHITE else "Black"
             self.status_label.setText(f"{turn} is in Check")
@@ -525,7 +530,6 @@ class ChessControlPanel(QWidget):
     flip_board_clicked = Signal()
     undo_move_clicked = Signal()
     player_config_changed = Signal(str, str)
-    ai_depth_changed = Signal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -556,8 +560,12 @@ class ChessControlPanel(QWidget):
         button_layout.addWidget(self.undo_move_btn)
         button_layout.addWidget(self.flip_board_btn)
 
-        # Settings layout
+        # Settings layout - Center the player controls
         settings_layout = QHBoxLayout()
+
+        # Create a container widget for player settings
+        player_settings = QWidget()
+        player_layout = QHBoxLayout(player_settings)
 
         # White player selection
         white_label = QLabel("White:")
@@ -565,7 +573,7 @@ class ChessControlPanel(QWidget):
         self.white_player = QComboBox()
         self.white_player.addItems(["Human", "AI"])
         self.white_player.setStyleSheet("font-size: 14px; height: 22px;")
-        self.white_player.setMinimumWidth(100)
+        self.white_player.setFixedWidth(100)
 
         # Black player selection
         black_label = QLabel("Black:")
@@ -573,47 +581,19 @@ class ChessControlPanel(QWidget):
         self.black_player = QComboBox()
         self.black_player.addItems(["Human", "AI"])
         self.black_player.setStyleSheet("font-size: 14px; height: 22px;")
-        self.black_player.setMinimumWidth(100)
+        self.black_player.setFixedWidth(100)
 
-        # AI strength slider
-        strength_label = QLabel("AI Strength:")
-        strength_label.setStyleSheet("font-weight: bold; font-size: 16px;")
-        self.strength_value = QLabel("1000")
-        self.strength_value.setStyleSheet("font-size: 16px;")
+        # Add all to player settings layout
+        player_layout.addWidget(white_label)
+        player_layout.addWidget(self.white_player)
+        player_layout.addSpacing(20)
+        player_layout.addWidget(black_label)
+        player_layout.addWidget(self.black_player)
 
-        self.strength_slider = QSlider(Qt.Horizontal)
-        self.strength_slider.setMinimum(100)
-        self.strength_slider.setMaximum(2000)
-        self.strength_slider.setValue(1000)
-        self.strength_slider.setTickInterval(100)
-        self.strength_slider.setSingleStep(10)  # Move by 10 for each step
-        self.strength_slider.setPageStep(100)  # Move by 100 for page step
-        self.strength_slider.setTickPosition(QSlider.TicksBelow)
-        self.strength_slider.setStyleSheet("""
-            QSlider::groove:horizontal {
-                height: 10px;
-                background: #ccc;
-                margin-top: 5px;
-            }
-            QSlider::handle:horizontal {
-                background: #555;
-                border: 1px solid #000;
-                width: 18px;
-                margin: -2px 0;
-                border-radius: 3px;
-            }
-        """)
-
-        # Add all to settings layout
-        settings_layout.addWidget(white_label)
-        settings_layout.addWidget(self.white_player)
-        settings_layout.addSpacing(10)
-        settings_layout.addWidget(black_label)
-        settings_layout.addWidget(self.black_player)
-        settings_layout.addSpacing(20)
-        settings_layout.addWidget(strength_label)
-        settings_layout.addWidget(self.strength_slider)
-        settings_layout.addWidget(self.strength_value)
+        # Center the player settings
+        settings_layout.addStretch(1)
+        settings_layout.addWidget(player_settings)
+        settings_layout.addStretch(1)
 
         # Add all layouts to main layout
         main_layout.addLayout(button_layout)
@@ -627,21 +607,12 @@ class ChessControlPanel(QWidget):
         self.undo_move_btn.clicked.connect(self.undo_move_clicked)
         self.white_player.currentTextChanged.connect(self._player_selection_changed)
         self.black_player.currentTextChanged.connect(self._player_selection_changed)
-        self.strength_slider.valueChanged.connect(self._strength_changed)
 
     def _player_selection_changed(self):
         """Handle player selection changes"""
         white = self.white_player.currentText()
         black = self.black_player.currentText()
         self.player_config_changed.emit(white, black)
-
-    def _strength_changed(self, value):
-        """Handle AI strength slider changes"""
-        # Round to nearest 10
-        value = round(value / 10) * 10
-        self.strength_slider.setValue(value)
-        self.strength_value.setText(str(value))
-        self.ai_depth_changed.emit(value)
 
 
 class ChessEvaluationWidget(QWidget):
@@ -706,9 +677,9 @@ class ChessEvaluationWidget(QWidget):
         self.probabilities = probabilities
 
         # Update text labels with percentages
-        self.white_prob.setText(f"White: {probabilities[0]:.0%}")
-        self.draw_prob.setText(f"Draw: {probabilities[1]:.0%}")
-        self.black_prob.setText(f"Black: {probabilities[2]:.0%}")
+        self.white_prob.setText(f"White: {probabilities[0]:.1%}")
+        self.draw_prob.setText(f"Draw: {probabilities[1]:.1%}")
+        self.black_prob.setText(f"Black: {probabilities[2]:.1%}")
 
 
 class ChessMainWindow(QMainWindow):
@@ -768,7 +739,7 @@ class ChessMainWindow(QMainWindow):
         self.black_player_type = "Human"
 
         # AI depth/strength
-        self.ai_depth = 1000
+        self.ai_depth = 250
 
         # Initialize the model
         self.model = None
@@ -783,7 +754,6 @@ class ChessMainWindow(QMainWindow):
         self.control_panel.flip_board_clicked.connect(self.board_widget.flip_board)
         self.control_panel.undo_move_clicked.connect(self.undo_move)
         self.control_panel.player_config_changed.connect(self.update_player_config)
-        self.control_panel.ai_depth_changed.connect(self.update_ai_depth)
 
         # Update displays
         self.game_info.update_status(self.board_widget.board)
@@ -801,10 +771,14 @@ class ChessMainWindow(QMainWindow):
 
         try:
             print("Loading chess model...")
-            self.model = EnhancedChessModel()
+            self.model = EnhancedChessModel(
+                model_width=512,
+                model_depth=16,
+                num_heads=4
+            )
 
             # Check if trained model exists
-            model_path = "../models/enhanced_chess_model_best.pth"
+            model_path = "./models/enhanced_chess_model.pth"
             if os.path.exists(model_path):
                 print(f"Loading model weights from {model_path}")
                 self.model.load_model(model_path)
@@ -821,14 +795,20 @@ class ChessMainWindow(QMainWindow):
         """Handle square selection on the board"""
         square, prev_square = square_info
 
-        # Check if it's a human player's turn
+        # Get current player type for logging purposes
         current_player_type = self.white_player_type if self.board_widget.board.turn else self.black_player_type
-        if current_player_type != "Human":
+
+        # If a move was made (either by human or AI), update game state
+        if prev_square is not None and len(self.board_widget.board.move_stack) > 0:
+            # The move has already been made on the board at this point
+            # Now we need to update game state and handle the next turn
+            self.handle_move_made()
             return
 
-        # If a move was made, update game state
-        if prev_square is not None and len(self.board_widget.board.move_stack) > 0:
-            self.handle_move_made()
+        # The following is only for initial piece selection by a human player
+        # This should only apply if no move was made yet (just selecting a piece)
+        if current_player_type != "Human":
+            return
 
     def handle_move_made(self):
         """Handle move made on the board"""
@@ -849,7 +829,11 @@ class ChessMainWindow(QMainWindow):
     def is_game_over(self) -> bool:
         """Check if the game is over"""
         board = self.board_widget.board
-        return board.is_checkmate() or board.is_stalemate() or board.is_insufficient_material()
+        return (board.is_checkmate() or
+                board.is_stalemate() or
+                board.is_insufficient_material() or
+                board.can_claim_threefold_repetition() or
+                board.can_claim_fifty_moves())
 
     def update_evaluation(self):
         """Update the evaluation display"""

@@ -320,7 +320,7 @@ class EnhancedChessModel:
         """
         if tensorset_path and os.path.exists(tensorset_path):
             print(f"Loading existing tensorset from {tensorset_path}")
-            dataset = torch.load(tensorset_path, weights_only=False)
+            dataset = torch.load(tensorset_path)
             #This is a tuple [0] is board [1] is winner
         else:
             print("Building dataset from GM games...")
