@@ -1,6 +1,6 @@
 #  Author: Kyle Tranfaglia
 #  Title: dataTester - data cleaning, filtering, and concatenation
-#  Last updated: 05/05/25
+#  Last updated: 05/06/25
 #  Description: This program uses the pandas library to store chess games in a data frame after
 #  extraction from pgn files plus cleaning, filtering, and concatenation
 import pandas as pd
@@ -10,65 +10,65 @@ import os
 # Read in a pgn into a pandas data frame
 def read_pgn(pgn_file_path):
     games = []
-    current_result = None
-    # current_eco = None
+    current_headers = {}
     moves = []
     
-    with open(pgn_file_path, 'r') as file:
+    with open(pgn_file_path, 'r', encoding='utf-8', errors='replace') as file:
         for line in file:
             line = line.strip()
             
             # Empty line separates games
             if not line:
-                if moves:  # Only add games that have moves
+                if moves and 'Result' in current_headers:
                     # Process the moves to remove numbering
                     combined_moves = ' '.join(moves)
-                    # Replace move numbers (like "1.", "2.", etc.)
+                    # Replace move numbers
                     clean_moves = re.sub(r'\d+\.+\s*', '', combined_moves)
                     # Remove result from the move list
                     clean_moves = clean_moves.replace('1-0', '').replace('0-1', '').replace('1/2-1/2', '').replace('*', '')
                     
                     # Only add the game if there are actual moves after cleaning
                     if clean_moves.strip():
+                        # Convert result to winner
+                        result = current_headers.get('Result', '*')
+                        if result == '1-0':
+                            winner = 'white'
+                        elif result == '0-1':
+                            winner = 'black'
+                        elif result == '1/2-1/2':
+                            winner = 'draw'
+                        else:
+                            winner = None  # Unknown or ongoing
+                            continue
+                        
+                        # Count the number of moves
+                        move_tokens = clean_moves.split()
+                        move_count = len(move_tokens)
+                        
+                        # Skip games with fewer than 30 moves (approx 60 tokens)
+                        if move_count < 60:
+                            current_headers = {}
+                            moves = []
+                            continue
+                        
                         games.append({
-                            'winner': current_result,
-                            # 'ECO': current_eco
+                            'winner': winner,
                             'moves': clean_moves.strip()
                         })
                     
-                    current_result = None
-                    # current_eco = None  # Reset ECO
+                    current_headers = {}
                     moves = []
                 continue
                 
-            # Grab the Result header
-            if line.startswith('[Result '):
-                try:
-                    current_result = line.split('"')[1].replace('1-0', 'white').replace('0-1', 'black').replace('1/2-1/2', 'draw').replace('*', 'draw')
-                except:
-                    pass
-            # # Grab the ECO header
-            # elif line.startswith('[ECO '):
-            #     try:
-            #         current_eco = line.split('"')[1]
-            #     except:
-            #         pass
+            # Grab the headers
+            if line.startswith('['):
+                header_match = re.match(r'\[(.*?)\s+"(.*?)"\]', line)
+                if header_match:
+                    header_name, header_value = header_match.groups()
+                    current_headers[header_name] = header_value
             # If line doesn't start with '[', it's probably moves
             elif not line.startswith('['):
                 moves.append(line)
-        
-    # Last game in the file (if any)
-    if moves:
-        combined_moves = ' '.join(moves)
-        clean_moves = re.sub(r'\d+\.+\s*', '', combined_moves)
-        clean_moves = clean_moves.replace('1-0', '').replace('0-1', '').replace('1/2-1/2', '').replace('*', '')
-        
-        if clean_moves.strip():
-            games.append({
-                'winner': current_result,
-                # 'ECO': current_eco
-                'moves': clean_moves.strip()
-            })
     
     return pd.DataFrame(games)
 
@@ -86,33 +86,63 @@ def read_all_pgn_files(data_folder):
     
     # Process each file
     for pgn_file in pgn_files:
+        print(f"Processing {pgn_file}...")
         pgn_file_path = os.path.join(data_folder, pgn_file)
         
         df = read_pgn(pgn_file_path)
         all_games.append(df)
     
-    # Combine (concatenate) all DataFrames
+    # Combine all DataFrames
     if all_games:
         combined_df = pd.concat(all_games, ignore_index=True)
-        # Additional filter to remove any remaining rows with NaN moves
-        combined_df = combined_df.dropna(subset=['moves'])
+        combined_df = combined_df.dropna(subset=['moves'])  # remove any remaining rows with NaN moves
         print(f"\nTotal games loaded: {len(combined_df)}")
         return combined_df
     else:
         return pd.DataFrame()
 
-# Main Program
-
-data_folder = "./data"
-
-# Read all PGN files and get a combined DataFrame
-all_chess_games = read_all_pgn_files(data_folder)
-
-# Display information about the combined dataset
-if not all_chess_games.empty:
-    print(all_chess_games.head())
-    print(f"\nTotal number of games: {all_chess_games.shape[0]}")
-    print(f"Results distribution:\n{all_chess_games['winner'].value_counts()}")
+# Balance the dataset by ensuring equal representation of outcomes
+def balance_dataset(df):
+    # Group by winner
+    white_wins = df[df['winner'] == 'white']
+    black_wins = df[df['winner'] == 'black']
+    draws = df[df['winner'] == 'draw']
     
-    # Save to CSV
-    all_chess_games.to_csv("./data/GM_games_small.csv", index=False)
+    # Find the minimum count
+    min_count = min(len(white_wins), len(black_wins), len(draws))
+    
+    # Sample equally from each group
+    balanced_white = white_wins.sample(min_count*2, replace=False)
+    balanced_black = black_wins.sample(min_count*2, replace=False)
+    balanced_draws = draws.sample(min_count, replace=False)
+    
+    # Combine the balanced datasets
+    balanced_df = pd.concat([balanced_white, balanced_black, balanced_draws], ignore_index=True)
+    
+    return balanced_df
+
+# Main Program
+if __name__ == "__main__":
+    data_folder = "./data"
+    
+    # Read all PGN files and get a combined DataFrame
+    all_chess_games = read_all_pgn_files(data_folder)
+    
+    # Display information about the combined dataset
+    if not all_chess_games.empty:
+        print(f"\nOriginal dataset:")
+        print(f"Total number of games: {all_chess_games.shape[0]}")
+        print(f"Results distribution:\n{all_chess_games['winner'].value_counts()}")
+        
+        # Balance the dataset
+        balanced_df = balance_dataset(all_chess_games)
+        print(f"Balanced dataset:")
+        print(f"Total number of games: {balanced_df.shape[0]}")
+        print(f"Results distribution:\n{balanced_df['winner'].value_counts()}")
+        
+        # Save to CSV
+        output_path = "./data/GM_games.csv"
+        balanced_df.to_csv(output_path, index=False)
+        print(f"\nData saved to {output_path}")
+    else:
+        print("No games were found!")
