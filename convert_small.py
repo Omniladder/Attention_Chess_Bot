@@ -1,15 +1,17 @@
-from train.dataset import DataHandler
 import torch
+from train.bigger_model import EnhancedChessArch
 
-handler = DataHandler()
+# Assuming you have a model class defined as `YourModel`
+model = EnhancedChessArch(
+            model_width=512, 
+            model_depth=8, 
+            num_heads=4,
+            dropout_rate=.2
+        ) # Instantiate the model
 
-dataset = handler.get_gm_dataset(dataset_path="./data/GM_games_small.csv")
+# Load the model state_dict from the .pt file
+model.load_state_dict(torch.load('./models/enhanced_chess_model_best.pth'), strict=False)
 
-#dataset = dataset[:10000]
-
-tensorset = handler.dataset_to_tensorset(dataset)
-
-tensorset = handler.average_tensors(tensorset)
-
-torch.save(tensorset.tensors, 'tensorset.pt')
-    
+# Print all the model parameters (weights and biases)
+for name, param in model.named_parameters():
+    print(f"Layer: {name}, Shape: {param.shape}, Weights: {param.data}")

@@ -21,7 +21,7 @@ from torch.utils.data import random_split, DataLoader, TensorDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from sklearn.model_selection import train_test_split
 
-from dataset import DataHandler
+from .dataset import DataHandler
 
 class InitBlock(nn.Module):
     def __init__(self, model_width: int, dropout_rate: float = 0.3):
@@ -88,10 +88,9 @@ class FeedForwardBlock(nn.Module):
         # Feed-forward network
         x = self.linear1(x)
         x = self.activ(x)
-        x = self.dropout(x)
+        #x = self.dropout(x)
         x = self.linear2(x)
-        x = self.dropout(x)
-        
+        #x = self.dropout(x)
         # Residual connection and layer normalization
         x = self.layer_norm(x + residual)
         
@@ -212,7 +211,7 @@ class EnhancedChessModel:
         model_depth: int = 8, 
         num_heads: int = 4,
         dropout_rate: float = 0.2,
-        weight_decay: float = 1e-4
+        weight_decay: float = 1e-5
     ):
         self.model = EnhancedChessArch(
             model_width=model_width, 
@@ -630,13 +629,13 @@ class EnhancedChessModel:
 
 if __name__ == "__main__":
     # Configuration
-    MODEL_WIDTH = 256       # Increased from original model
-    MODEL_DEPTH = 8       # Increased from original model
+    MODEL_WIDTH = 512       # Increased from original model
+    MODEL_DEPTH = 16       # Increased from original model
     NUM_HEADS = 4           # New parameter for attention mechanism
     LEARNING_RATE = 1e-3
     BATCH_SIZE = 256
     NUM_EPOCHS = 5
-    DROPOUT_RATE = 0.2
+    DROPOUT_RATE = 0.05
     
     # Create and train enhanced model
     print("Initializing enhanced chess model...")
