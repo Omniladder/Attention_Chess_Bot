@@ -25,44 +25,53 @@ from dataset import DataHandler
 
 class InitBlock(nn.Module):
     def __init__(self, model_width: int, dropout_rate: float = 0.3):
-        super(InitBlock, self).__init__()
+        super().__init__()
         self.input_size = 837
-        self.activ = nn.GELU()
-        self.dropout = nn.Dropout(dropout_rate)
-        
-        # Two layer setup for better feature extraction
+        self.model_width = model_width
+
+        # 1) Pre-LayerNorm
+        self.input_norm = nn.LayerNorm(self.input_size)
+
+        # 2) MLP layers
         self.linear1 = nn.Linear(self.input_size, model_width * 2)
         self.linear2 = nn.Linear(model_width * 2, model_width)
-        
-        self.layer_norm1 = nn.LayerNorm(model_width * 2)
-        self.layer_norm2 = nn.LayerNorm(model_width)
-        
-        self.model_width = model_width
-        
-        # Better initialization
+
+        # 3) Skip-projection
+        self.skip_proj = nn.Linear(self.input_size, model_width)
+
+        self.activ = nn.GELU()
+        self.dropout = nn.Dropout(dropout_rate)
+
+        # 4) Initialization
         nn.init.kaiming_normal_(self.linear1.weight)
-        nn.init.kaiming_normal_(self.linear2.weight)
-    
+        nn.init.zeros_(self.linear1.bias)
+        nn.init.xavier_normal_(self.linear2.weight)
+        nn.init.zeros_(self.linear2.bias)
+        nn.init.kaiming_normal_(self.skip_proj.weight)
+        nn.init.zeros_(self.skip_proj.bias)
+
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         if not isinstance(inputs, torch.Tensor):
-            raise ValueError(f"Invalid Type Final Layer {type(inputs)} expected {type(torch.Tensor)}")
-        
+            raise ValueError(f"Expected Tensor but got {type(inputs)}")
         if inputs.size(1) != self.input_size:
-            raise ValueError(f"inputs Board Tensor Improper Size: \n Received Size: {inputs.size(1)} \n Expected Size: {self.input_size}")
-        
-        # First layer with expansion
-        embedding = self.linear1(inputs)
-        embedding = self.layer_norm1(embedding)
-        embedding = self.activ(embedding)
-        embedding = self.dropout(embedding)
-        
-        # Second layer with projection
-        embedding = self.linear2(embedding)
-        embedding = self.layer_norm2(embedding)
-        embedding = self.activ(embedding)
-        embedding = self.dropout(embedding)
-        
-        return embedding
+            raise ValueError(
+                f"Expected input size {self.input_size}, got {inputs.size(1)}"
+            )
+
+        # Pre-normalize
+        y = self.input_norm(inputs)
+
+        # MLP expansion → projection
+        y = self.linear1(y)
+        y = self.activ(y)
+        y = self.dropout(y)
+        y = self.linear2(y)
+
+        # Skip + dropout
+        res = self.skip_proj(inputs)
+        out = res + y
+        out = self.dropout(out)
+        return out
 
 
 class FeedForwardBlock(nn.Module):
@@ -84,15 +93,15 @@ class FeedForwardBlock(nn.Module):
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
-        
+        x = self.layer_norm(x)
         # Feed-forward network
         x = self.linear1(x)
         x = self.activ(x)
-        #x = self.dropout(x)
+        x = self.dropout(x)
         x = self.linear2(x)
-        #x = self.dropout(x)
+        x = self.dropout(x)
         # Residual connection and layer normalization
-        x = self.layer_norm(x + residual)
+        x = x + residual
         
         return x
 
@@ -102,54 +111,57 @@ class EnhancedHiddenBlock(nn.Module):
         super(EnhancedHiddenBlock, self).__init__()
         self.model_width = model_width
         self.attention = nn.MultiheadAttention(model_width, num_heads, dropout=dropout_rate)
-        #self.attention = AttentionBlock(model_width, num_heads, dropout_rate)
+        self.layer_norm = nn.LayerNorm(model_width)
+        self.dropout = nn.Dropout(dropout_rate)
         self.feed_forward = FeedForwardBlock(model_width, dropout_rate=dropout_rate)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        y = self.layer_norm(x)
         # Apply attention mechanism
-        x, _ = self.attention(x, x, x)
-        
+        attn_out, _ = self.attention(y, y, y)
+        attn_out = self.dropout(attn_out)
+
+        x = x + attn_out
+        y = self.layer_norm(x)
         # Apply feed-forward network
-        x = self.feed_forward(x)
-        
+        ff_out = self.feed_forward(y)
+        x = x + self.dropout(ff_out)
+
         return x
 
 
 class FinalBlock(nn.Module):
     def __init__(self, model_width: int, dropout_rate: float = 0.3):
-        super(FinalBlock, self).__init__()
+        super().__init__()
         self.output_size = 3
-        
-        # Two layer output for better probability estimation
-        self.linear1 = nn.Linear(model_width, model_width // 2)
-        self.linear2 = nn.Linear(model_width // 2, self.output_size)
-        
-        self.layer_norm = nn.LayerNorm(model_width)
-        self.dropout = nn.Dropout(dropout_rate)
-        self.activ = nn.GELU()
-        
-        self.model_width = model_width
-        
-        # Initialize weights
-        nn.init.xavier_normal_(self.linear1.weight)
-        nn.init.xavier_normal_(self.linear2.weight)
-    
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        if not isinstance(inputs, torch.Tensor):
-            raise ValueError(f"Invalid Type Final Layer {type(inputs)} expected {type(torch.Tensor)}")
 
-        if inputs.size(1) != self.model_width:
-            raise ValueError(f"Final Tensor Improper Size: \n Received Size: {inputs.size(1)} \n Expected Size: {self.model_width}")
-        
-        # First layer
-        embedding = self.layer_norm(inputs)
-        embedding = self.linear1(embedding)
-        embedding = self.activ(embedding)
-        embedding = self.dropout(embedding)
-        
-        # Output layer
-        embedding = self.linear2(embedding)
-        embedding = F.log_softmax(embedding, dim=1)
+        # 1) Pre-LayerNorm
+        self.input_norm = nn.LayerNorm(model_width)
+
+        # 2) Two-layer MLP head
+        self.linear1 = nn.Linear(model_width, model_width // 2)
+        self.activ   = nn.GELU()
+        self.dropout = nn.Dropout(dropout_rate)
+        self.linear2 = nn.Linear(model_width // 2, self.output_size)
+
+        # 3) Initialize weights + zero biases
+        nn.init.kaiming_normal_(self.linear1.weight, nonlinearity='relu')
+        nn.init.zeros_(self.linear1.bias)
+        nn.init.xavier_normal_(self.linear2.weight)
+        nn.init.zeros_(self.linear2.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # sanity checks
+        if x.dim() != 2 or x.size(1) != self.input_norm.normalized_shape[0]:
+            raise ValueError(f"Expected input shape [batch, {self.input_norm.normalized_shape[0]}], got {tuple(x.shape)}")
+
+        # Pre-norm → MLP → dropout → logits
+        x = self.input_norm(x)
+        x = self.linear1(x)
+        x = self.activ(x)
+        x = self.dropout(x)
+        logits = self.linear2(x)
+        embedding = F.log_softmax(logits, dim=1)
         
         return embedding
 
@@ -634,7 +646,7 @@ if __name__ == "__main__":
     NUM_HEADS = 4           # New parameter for attention mechanism
     LEARNING_RATE = 1e-3
     BATCH_SIZE = 256
-    NUM_EPOCHS = 5
+    NUM_EPOCHS = 50
     DROPOUT_RATE = 0.05
     
     # Create and train enhanced model
