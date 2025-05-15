@@ -121,12 +121,96 @@ def balance_dataset(df):
     
     return balanced_df
 
+def read_kaggle_chess_data(csv_file_path, max_games=100000, min_elo_diff=0,  min_elo=None):
+    # Read the CSV file
+    print(f"Reading {csv_file_path}...")
+    df = pd.read_csv(csv_file_path, low_memory=False, nrows=max_games)
+    
+    # Print the original size
+    original_size = len(df)
+    print(f"Original dataset size: {original_size} games")
+
+    # Apply minimum ELO filter if specified
+    if min_elo is not None:
+        df = df[(df['WhiteElo'] >= min_elo) & (df['BlackElo'] >= min_elo)]
+        print(f"Games after minimum ELO ({min_elo}) filter: {len(df)}")
+    
+    
+    # Filter by ELO difference if specified
+    if min_elo_diff > 0:
+        # Calculate the absolute ELO difference
+        df['elo_diff'] = abs(df['BlackElo'] - df['WhiteElo'])
+        # Filter games with sufficient ELO difference
+        df = df[df['elo_diff'] >= min_elo_diff]
+        print(f"Games after ELO difference filter: {len(df)}")
+    
+    # Map the result to the winner format
+    result_mapping = {
+        '1-0': 'white',
+        '0-1': 'black',
+        '1/2-1/2': 'draw'
+    }
+    
+    # Function to clean move notation
+    def clean_moves(moves_text):
+        if pd.isna(moves_text):
+            return None
+            
+        # Remove move numbers (e.g., "1.", "2.", etc.)
+        cleaned = re.sub(r'\d+\.+\s*', '', moves_text)
+        
+        # Remove evaluations in curly braces (e.g., "{ [%eval 0.3] }")
+        cleaned = re.sub(r'\{[^}]*\}', '', cleaned)
+        
+        # Remove chess annotation symbols (!, ?, !!, ??, !?, ?!, etc.)
+        cleaned = re.sub(r'[!?]+', '', cleaned)
+        
+        # Remove ellipsis used in move numbering (e.g., "2...")
+        cleaned = re.sub(r'\d+\.{3}\s*', '', cleaned)
+        
+        # Remove final result (e.g., "1-0", "0-1", "1/2-1/2")
+        cleaned = re.sub(r'\s+(?:1-0|0-1|1\/2-1\/2|\*)$', '', cleaned)
+        
+        # Remove any extra whitespace
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        return cleaned
+    
+    # Create a new DataFrame with just the needed columns
+    chess_games = pd.DataFrame({
+        'winner': df['Result'].map(result_mapping),
+        'moves': df['AN'].apply(clean_moves)
+    })
+    
+    # Drop any rows with NaN values or empty moves
+    chess_games = chess_games.dropna()
+    chess_games = chess_games[chess_games['moves'].str.strip() != '']
+    
+    # Filter out games with fewer than 30 moves
+    chess_games['move_count'] = chess_games['moves'].apply(lambda x: len(x.split()))
+    chess_games = chess_games[chess_games['move_count'] >= 60]
+    chess_games = chess_games.drop(columns=['move_count'])
+    
+    print(f"Final processed dataset size: {len(chess_games)} games")
+    return chess_games
+
 # Main Program
 if __name__ == "__main__":
     data_folder = "./data"
-    
+    kaggle_data_path = "./data/Big_chess_data.csv"
+
+    kaggle_games = read_kaggle_chess_data(
+        kaggle_data_path,
+        max_games=5000000,  # Set to None to read all games
+        min_elo_diff=400,  # Minimum ELO difference between players
+        min_elo=1200 # Minimum ELO for both players
+    )
+
     # Read all PGN files and get a combined DataFrame
-    all_chess_games = read_all_pgn_files(data_folder)
+    all_pgn_games = read_all_pgn_files(data_folder)
+    
+    # Combine the datasets
+    all_chess_games = pd.concat([all_pgn_games, kaggle_games], ignore_index=True)
     
     # Display information about the combined dataset
     if not all_chess_games.empty:
@@ -141,7 +225,7 @@ if __name__ == "__main__":
         print(f"Results distribution:\n{balanced_df['winner'].value_counts()}")
         
         # Save to CSV
-        output_path = "./data/GM_games.csv"
+        output_path = "./data/GOATED_data_10.csv"
         balanced_df.to_csv(output_path, index=False)
         print(f"\nData saved to {output_path}")
     else:
